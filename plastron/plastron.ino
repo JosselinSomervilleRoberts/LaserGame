@@ -56,6 +56,7 @@ const uint16_t kRecvPin = 2;
 bool vivant = true;
 long lastDeath = 0;
 long timeRespawn = 1000;
+bool partieEnCours = false;
 
 long timeBeingShot = 1;
 long timeTolerance = 250;
@@ -202,35 +203,59 @@ void OnDataRecv(uint8_t * mac, uint8_t *incomingData, uint8_t len) {
     }
   }
 
+  else if (myData.idMessage == 11) { // Le pistolet indique de mourir
+    // On vérifie que c'est bien l'addresse MAC que l'on attendait
+    if(cestLePistolet) {
+      if(vivant)
+        mourir();
+    }
+  }
+
+
+  else if (myData.idMessage == 12) { // Le pistolet indique de revivre
+    // On vérifie que c'est bien l'addresse MAC que l'on attendait
+    if(cestLePistolet) {
+      if(not(vivant))
+        revivre();
+    }
+  }
+  
 
   else if (myData.idMessage == 20) { // Le pistolet indique de changer de couleur
     // On vérifie que c'est bien l'addresse MAC que l'on attendait
     if(cestLePistolet)
       hue = uint8_t(myData.value);
   }
+
+
+  else if (myData.idMessage == 30) { // Le pistolet indique que l'état de la la partie a changé
+    // On vérifie que c'est bien l'addresse MAC que l'on attendait
+    if(cestLePistolet) {
+      if((myData.value == 1) and not(partieEnCours))
+        partieEnCours = true;
+      else if((myData.value == 2) and (partieEnCours))
+        partieEnCours = false;
+    }     
+  }
 }
 
 
 // Callback when data is sent
-void OnDataSent(uint8_t *mac_addr, uint8_t sendStatus) {
-  if(sendStatus == 1)
-    Serial.println("Envoi réussi !");
-  else
-    Serial.println("PROBLEME D'ENVOI");
-}
+void OnDataSent(uint8_t *mac_addr, uint8_t sendStatus) {}
 
 
 void setup() {
-  //pinMode(led, OUTPUT);
+  pinMode(led1, OUTPUT);
+  digitalWrite(led1, HIGH);
+  
   Serial.begin(115200);
   irrecv.enableIRIn();  // Start the receiver
   while (!Serial)  // Wait for the serial connection to be establised.
     delay(50);
-  Serial.println();
-  Serial.print("IRrecvDemo is now running and waiting for IR message on Pin ");
-  Serial.println(kRecvPin);
 
   FastLED.addLeds<WS2812, ledPin, GRB>(leds, NUM_LEDS);
+  pinMode(led2, OUTPUT);
+  digitalWrite(led2, HIGH);
 
   // Set device as a Wi-Fi Station
   WiFi.mode(WIFI_STA);
@@ -253,19 +278,8 @@ void setup() {
     // Register peer
     esp_now_add_peer(adressAutreCible, ESP_NOW_ROLE_COMBO, 1, NULL, 0);
   }
-
-  pinMode(led1, OUTPUT);
-  digitalWrite(led1, HIGH);
-  delay(500);
-  
-  pinMode(led2, OUTPUT);
-  digitalWrite(led2, HIGH);
-  delay(500);
-
+  digitalWrite(led2, LOW);
   pinMode(led3, OUTPUT);
-  digitalWrite(led3, HIGH);
-  delay(500);
-  //revivre();
 }
 
 void turnOn() {
@@ -292,9 +306,7 @@ void mourir() {
   }
   turnOff();
   vivant = false;
-
-  // A priori inutile
-  lastDeath = millis();
+  digitalWrite(led2, LOW);
 }
 
 /*
@@ -308,10 +320,12 @@ void mourir() {
 void revivre() {
   vivant = true;
   beingShot = false;
-  //analogWrite(led, 250);
   turnOn();
   lastUpdateLed = millis();
-  currentLed = 8;
+  currentLed = NUM_LEDS-1;
+  digitalWrite(led2, HIGH);
+
+  // On vide le buffer de messages IR pour ne pas mourir instantanément
   while (irrecv.decode(&results)) {
     irrecv.resume();
   }
@@ -391,7 +405,7 @@ void loop() {
     hue = hueBase;
 
     bool change = false;
-    if((not(tryingToConnect)) and (typeCible == AVANT))  {
+    if(not(tryingToConnect))  {
       if(millis() - lastUpdateLed >= BLEEP_TIME_WAITING_TO_CONNECT) {
         ledBlinkState = not(ledBlinkState);
         change = true;
@@ -408,10 +422,16 @@ void loop() {
     }
 
     if(change) {
-      if(ledBlinkState)
-        turnOn();
-      else
-        turnOff();
+      if(ledBlinkState) {
+        if(typeCible == AVANT)
+          turnOn();
+        pinMode(led3, HIGH);
+      }
+      else {
+        if(typeCible == AVANT)
+          turnOff();
+        pinMode(led3, LOW);
+      }
           
       lastUpdateLed = millis();
       }
@@ -425,6 +445,7 @@ void loop() {
       }
   }
   else { // On est connecté
+    pinMode(led3, HIGH);
 
     if(vivant) {
       // On fait "tourner" les LEDs
