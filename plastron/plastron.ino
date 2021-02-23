@@ -12,7 +12,7 @@
  
 
 
-#define NUM_LEDS 3//9
+#define NUM_LEDS 9
 CRGB leds[NUM_LEDS];
 const uint16_t ledPin = 4;
 uint8_t hue = 0;
@@ -25,12 +25,12 @@ uint8_t hueBase = 0;
 
 long timeConnectionProcessStarted = 0;
 uint8_t adressPistolet[] = {0xF4, 0xCF, 0xA2, 0x00, 0x00, 0x00};
-//uint8_t adressAutreCible[] = {0x8C, 0xAA, 0xB5, 0x78, 0x78, 0x8C};
+uint8_t addressSelf[] = {0x8C, 0xAA, 0xB5, 0x78, 0x78, 0x8C};
 uint8_t adressAutreCible[] = {0x84, 0xCC, 0xA8, 0x84, 0x3D, 0x18};
 uint8_t addressReceived[] = {0xF4, 0xCF, 0xA2, 0x00, 0x00, 0x00};
 bool connected = false;
 bool tryingToConnect = false;
-uint8_t typeCible = ARRIERE; // AVANT
+uint8_t typeCible = AVANT; // AVANT
 bool ledBlinkState = false;
 
 // For led chips like WS2812, which have a data line, ground, and power, you just
@@ -57,13 +57,8 @@ bool vivant = true;
 long lastDeath = 0;
 long timeRespawn = 1000;
 bool partieEnCours = false;
-
-long timeBeingShot = 1;
-long timeTolerance = 250;
-bool beingShot = false;
-long timeShootingStarted = 0;
 long delai = 20;
-long lastShootingRecorded = 0;
+
 long timeTurn = 500;
 int currentLed = 0;
 long lastUpdateLed = 0;
@@ -73,7 +68,9 @@ IRrecv irrecv(kRecvPin);
 
 decode_results results;
 
+#include <EEPROM.h>
 #include <ESP8266WiFi.h>
+#define EEPROM_SIZE 25
 #include <espnow.h>
 
 
@@ -154,14 +151,17 @@ void OnDataRecv(uint8_t * mac, uint8_t *incomingData, uint8_t len) {
           connected = true;
           tryingToConnect = false;
 
+          // on enregistre l'adresse du pistolet
+          for(int i=0; i<6; i++)
+            EEPROM.write(12+i, adressPistolet[i]);
+          EEPROM.commit();
+
           if(typeCible == AVANT) {
             // On informe l'autre cible de la connexion
             myData.idMessage = 3; // ID pour connecter l'autre cible
             // On transforme l'adresse MAC du pistolet en entier
             // Attention on envoie l'adresse dans le sens inverse
-            uint64_t value = 0;
-            for(int i=3; i<6; i++)
-              value += pow(16,2*i-6) * adressPistolet[i];
+            uint64_t value = adressPistolet[5];
             myData.value = uint32_t(value); // adresseMAC
             esp_now_send(adressAutreCible, (uint8_t *) &myData, sizeof(myData));
           }
@@ -182,13 +182,11 @@ void OnDataRecv(uint8_t * mac, uint8_t *incomingData, uint8_t len) {
   else if (myData.idMessage == 3) { // L'autre cible indique de se connecter
     // On vérifie que c'est bien l'addresse MAC de l'autre cible
     if(cestLautreCible) {
-      uint32_t message = myData.value;
       // On récupère l'adresse MAC du pistolet
-      for(int i=0; i<3; i++) {
-        uint32_t adressPart = uint32_t(uint32_t(message % uint32_t(pow(16,2+2*i)) / pow(16,2*i)));
-        adressPistolet[3+i] = uint8_t(adressPart);
-        message -= adressPart * pow(16,2*i);
-      }
+      for(int i=0; i<6; i++)
+        adressPistolet[i] = 0x32;
+
+      adressPistolet[5] = uint8_t(myData.value);
 
       // On ajoute le pistolet comme destinataire et on lui envoie une confirmation de connexion
       esp_now_add_peer(adressPistolet, ESP_NOW_ROLE_COMBO, 1, NULL, 0);
@@ -245,6 +243,19 @@ void OnDataSent(uint8_t *mac_addr, uint8_t sendStatus) {}
 
 
 void setup() {
+  Serial.begin(115200);
+  EEPROM.begin(EEPROM_SIZE);
+  hueBase = EEPROM.read(25);
+  typeCible = EEPROM.read(24);
+
+  // Charge l'adresse MAC
+  for(int i=0; i<6; i++) {
+    addressSelf[i] = EEPROM.read(i);
+    adressAutreCible[i] = EEPROM.read(6+i);
+    adressPistolet[i] = EEPROM.read(12+i);
+  }
+  wifi_set_macaddr(STATION_IF, &addressSelf[0]);
+  
   pinMode(led1, OUTPUT);
   digitalWrite(led1, HIGH);
   
@@ -280,6 +291,7 @@ void setup() {
   }
   digitalWrite(led2, LOW);
   pinMode(led3, OUTPUT);
+  checkRestoreConnection();
 }
 
 void turnOn() {
@@ -309,17 +321,9 @@ void mourir() {
   digitalWrite(led2, LOW);
 }
 
-/*
-void mourir() {
-  vivant = false;
-  analogWrite(led, 0);
-  lastDeath = millis();
-}
-*/
 
 void revivre() {
   vivant = true;
-  beingShot = false;
   turnOn();
   lastUpdateLed = millis();
   currentLed = NUM_LEDS-1;
@@ -340,23 +344,42 @@ int numeroLed(int i){
 }
 
 
+void checkRestoreConnection() {
+
+
+  
+  // On ajoute le pistolet comme destinataire et on lui envoie une confirmation de connexion
+      esp_now_add_peer(adressPistolet, ESP_NOW_ROLE_COMBO, 1, NULL, 0);
+      myData.idMessage = 1; // ID pour dire qu'on demande a se connecter
+      myData.value = hueBase; // on envoie la couleur de la cible
+      esp_now_send(adressPistolet, (uint8_t *) &myData, sizeof(myData));
+
+      // On commence à compter, on a 10s pour confirmer la connexion
+      tryingToConnect = true;
+      timeConnectionProcessStarted = millis();
+}
+
+
 
 void touche(uint32_t message) {
   // Les messages du laser game finissent par 0x66
   // Si ce n'est as le cas, on ignore le message
-  uint32_t checkLaserGame = message % uint32_t(pow(16,2));
+  uint32_t checkLaserGame = message % uint32_t(pow(16,4));
   Serial.println("TOUCHE");
   
-  if (checkLaserGame == uint32_t(0x66)) {
+  if (checkLaserGame == uint32_t(0x8666)) {
     message -= checkLaserGame;
+    uint32_t uintAddress = message;
     Serial.println("Laser Game checked");
 
-    uint8_t address[] = {0xF4, 0xCF, 0xA2, 0x00, 0x00, 0x00};
+    uint8_t address[] = {0x32, 0x32, 0x32, 0x32, 0x32, 0x00};
 
-    for(int i=0; i<3; i++) {
-      uint32_t adressPart = uint32_t(uint32_t(message % uint32_t(pow(16,4+2*i)) / pow(16,2+2*i)));
+
+    uint8_t nbBytesMAC = 1;
+    for(int i=0; i<nbBytesMAC; i++) {
+      uint32_t adressPart = uint32_t(uint32_t(message % uint32_t(pow(16,10-2*nbBytesMAC+2*i)) / pow(16,8-2*nbBytesMAC+2*i)));
       address[5-i] = uint8_t(adressPart);
-      message -= adressPart * pow(16,2+2*i);
+      message -= adressPart * pow(16,8-2*nbBytesMAC+2*i);
     }
 
     if((not(connected)) and (typeCible == AVANT)) {
@@ -375,27 +398,10 @@ void touche(uint32_t message) {
       timeConnectionProcessStarted = millis();
     }
     else if(connected) {
-      // On vérifie que l'on ne se soit pas tiré dessus
-      bool differentAdress = false;
-      for(int i=3; i<6; i++) {
-        if(address[i] != adressPistolet[i]) 
-          differentAdress = true;
-      }
-
-      if(differentAdress) {
-        // On envoie au pistolet qu'on a été touché
-        myData.idMessage = 10; // ID pour dire qu'on a été touché
-        myData.value = typeCible; // 1 = cible avant, 2 = cible arriere
-        esp_now_send(adressPistolet, (uint8_t *) &myData, sizeof(myData));
-
-        // On envoie à l'autre cible qu'on a été tué
-        myData.idMessage = 11; // ID pour dire qu'on est mort
-        myData.value = 0; // PAS DE VALEUR
-        esp_now_send(adressAutreCible, (uint8_t *) &myData, sizeof(myData));
-
-        // Enfin on fait mourir cette cible
-        mourir();
-      }
+      // On envoie au pistolet qu'on a été touché
+      myData.idMessage = 10; // ID pour dire qu'on a été touché
+      myData.value = uintAddress + typeCible; // 1 = cible avant, 2 = cible arriere
+      esp_now_send(adressPistolet, (uint8_t *) &myData, sizeof(myData));
     }
   }
 }
@@ -423,14 +429,13 @@ void loop() {
 
     if(change) {
       if(ledBlinkState) {
-        if(typeCible == AVANT)
-          turnOn();
-        pinMode(led3, HIGH);
+        turnOn();
+        digitalWrite(led3, HIGH);
       }
       else {
         if(typeCible == AVANT)
           turnOff();
-        pinMode(led3, LOW);
+        digitalWrite(led3, LOW);
       }
           
       lastUpdateLed = millis();
@@ -445,7 +450,7 @@ void loop() {
       }
   }
   else { // On est connecté
-    pinMode(led3, HIGH);
+    digitalWrite(led3, HIGH);
 
     if(vivant) {
       // On fait "tourner" les LEDs
