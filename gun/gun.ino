@@ -13,6 +13,10 @@
 #define ledBlinkWainting 150
 #define ledBlinkOneConnected 500
 
+#define TIME_WAIT_MAX_CHECK_CONNECTION 750
+#define TIME_WAIT_CHECK_CONNECTION 350
+#define TIME_WAIT_BEFORE_SENDING_AGAIN 100
+
 
 
 // PINS DEFINITION
@@ -52,6 +56,13 @@ uint8_t addressCibleAvant[] = {0x84, 0xCC, 0xA8, 0x00, 0x00, 0x00};
 uint8_t addressCibleArriere[] = {0x84, 0xCC, 0xA8, 0x00, 0x00, 0x00};
 bool connectedCibleAvant = false;
 bool connectedCibleArriere = false;
+uint32_t lastConnectionCheckAvant = 0;
+uint32_t lastConnectionCheckArriere = 0;
+uint32_t lastConnectionConfirmationAvant = 0;
+uint32_t lastConnectionConfirmationArriere = 0;
+uint32_t lastCheckValueAvant = 0;
+uint32_t lastCheckValueArriere = 0;
+bool hasBeenConnectedCible = false;
 
 
 // Pour le jeu
@@ -67,6 +78,8 @@ uint8_t musique[28];
 long timeBetweenShots[] = {100, 1000, 0};
 int weapon = 0;
 bool isShootingLoop = false;
+bool equipeChosen = false;
+uint8_t hue = 0;
 
 // Stats
 uint16_t score = 0;
@@ -121,6 +134,19 @@ void OnDataRecv(uint8_t * mac, uint8_t *incomingData, uint8_t len) {
   Serial.print("- value = ");
   Serial.println(myData.value, HEX);
 
+  bool cestCibleAvant = true;
+  for(int i=0; i<6; i++) {
+    if(addressCibleAvant[i] != addressReceived[i])
+      cestCibleAvant = false;
+  }
+
+  bool cestCibleArriere = true;
+  for(int i=0; i<6; i++) {
+    if(addressCibleArriere[i] != addressReceived[i])
+      cestCibleArriere = false;
+  }
+  
+
   if(myData.idMessage == 1) {
     for(int i=0; i<6; i++)
       Serial.println(addressReceived[i], HEX);
@@ -131,19 +157,20 @@ void OnDataRecv(uint8_t * mac, uint8_t *incomingData, uint8_t len) {
         if(myData.value == 0)
           couleur = "rouge";
         else if(myData.value == 32)
-          couleur = "orange";
-        else if(myData.value == 64)
           couleur = "jaune";
+        else if(myData.value == 64)
+          couleur = "vert c";
         else if(myData.value == 96)
           couleur = "vert";
         else if(myData.value == 128)
-          couleur = "cyan";
+          couleur = "ciel";
         else if(myData.value == 160)
           couleur = "bleu";
         else if(myData.value == 192)
           couleur = "violet";
         else if(myData.value == 224)
           couleur = "rose";
+        hue = myData.value;
   
         lcd.clear();
         lcd.setCursor(0, 0);
@@ -154,49 +181,113 @@ void OnDataRecv(uint8_t * mac, uint8_t *incomingData, uint8_t len) {
         waitingConnectionAnswer = true;
       }
       else {
-        // On regarde si c'est la cible qui veut se reconnecter
-        bool reconnexionAvant = true;
+        // Sinon c'est la cible arriere qui se connecte pour la premiere fois
         for(int i=0; i<6; i++) {
-          if(addressCibleAvant[i] != addressReceived[i])
-            reconnexionAvant = false;
+          addressCibleArriere[i] = addressReceived[i];
+          EEPROM.write(12+i, addressCibleArriere[i]);
         }
-
-        bool reconnexionArriere = true;
-        for(int i=0; i<6; i++) {
-          if(addressCibleArriere[i] != addressReceived[i])
-            reconnexionArriere = false;
-        }
-        
-        if(reconnexionAvant or reconnexionArriere) {
-          myData.idMessage = 2; // ID pour dire qu'on demande a se connecter
-          myData.value = 1; // Accepter
-          esp_now_send(addressReceived, (uint8_t *) &myData, sizeof(myData));
-        }
-        else { // Sinon c'est la cible arriere qui se connecte pour la premiere fois
-          for(int i=0; i<6; i++)
-            addressCibleArriere[i] = addressReceived[i];
+        EEPROM.commit();
             
-          esp_now_add_peer(addressReceived, ESP_NOW_ROLE_COMBO, 1, NULL, 0);
-          myData.idMessage = 2; // ID pour dire qu'on demande a se connecter
-          myData.value = 1; // PAS DE VALEUR
-          esp_now_send(addressReceived, (uint8_t *) &myData, sizeof(myData));
-          connectedCibleArriere = true;
-        }
+        esp_now_add_peer(addressReceived, ESP_NOW_ROLE_COMBO, 1, NULL, 0);
+        myData.idMessage = 2; // ID pour dire qu'on demande a se connecter
+        myData.value = 1; // PAS DE VALEUR
+        esp_now_send(addressReceived, (uint8_t *) &myData, sizeof(myData));
+        connectedCibleArriere = true;
+        hasBeenConnectedCible = true;
+        needRefreshAll = true;
       }
   }
 
-  if(myData.idMessage == 2) {
-    
+  if(myData.idMessage == 4) { // Reconnexion
+    if((cestCibleAvant and (started or hasBeenConnectedCible)) or (cestCibleArriere and (started or hasBeenConnectedCible))) {
+      Serial.println("RECONNECTION");
+
+      if(cestCibleAvant) {
+        connectedCibleAvant = true;
+        hasBeenConnectedCible = true;
+        needRefreshAll = true;
+        lastConnectionCheckAvant = millis();
+        lastConnectionConfirmationAvant = millis();
+        if(equipeChosen) {
+          myData.idMessage = 9;
+          myData.value = hue;
+          esp_now_send(addressCibleAvant, (uint8_t *) &myData, sizeof(myData));
+        }
+        else
+          hue = myData.value;
+      }
+
+      if(cestCibleArriere) {
+        connectedCibleArriere = true;
+        hasBeenConnectedCible = true;
+        needRefreshAll = true;
+        lastConnectionCheckArriere = millis();
+        lastConnectionConfirmationArriere = millis();
+        if(equipeChosen) {
+          myData.idMessage = 9;
+          myData.value = hue;
+          esp_now_send(addressCibleArriere, (uint8_t *) &myData, sizeof(myData));
+        }
+        else
+          hue = myData.value;
+      }
+
+      myData.idMessage = 2; // ID pour dire qu'on confirme la connexion
+      myData.value = 1; // Accepter
+      esp_now_send(addressReceived, (uint8_t *) &myData, sizeof(myData));
+    }
+  }
+
+  if(myData.idMessage == 8) { // Reconnexion acceptée
+    if(cestCibleAvant or cestCibleArriere) {
+      Serial.println("RECONNECTION");
+      myData.idMessage = 2; // ID pour dire qu'on confirme la connexion
+      myData.value = 1; // Accepter
+      esp_now_send(addressReceived, (uint8_t *) &myData, sizeof(myData));
+
+      if(cestCibleAvant) {
+        connectedCibleAvant = true;
+        hasBeenConnectedCible = true;
+        needRefreshAll = true;
+        lastConnectionCheckAvant = millis();
+        lastConnectionConfirmationAvant = millis();
+        hue = myData.value;
+      }
+
+      if(cestCibleArriere) {
+        connectedCibleArriere = true;
+        hasBeenConnectedCible = true;
+        needRefreshAll = true;
+        lastConnectionCheckArriere = millis();
+        lastConnectionConfirmationArriere = millis();
+        hue = myData.value;
+      }
+    }
+  }
+
+
+  if (myData.idMessage == 9) { // Le pistolet a validé l equipe
+    equipeChosen = true;
+    hue = myData.value;
+  }
+  
+
+  if(myData.idMessage == 6) {
+    if(cestCibleAvant and (lastCheckValueAvant == myData.value))
+      lastConnectionConfirmationAvant = millis();
+    else if(cestCibleArriere and (lastCheckValueArriere == myData.value))
+      lastConnectionConfirmationArriere = millis();
   }
 }
 
 
 // Callback when data is sent
 void OnDataSent(uint8_t *mac_addr, uint8_t sendStatus) {
-  if(sendStatus == 1)
-    Serial.println("Envoi réussi !");
-  else
-    Serial.println("PROBLEME D'ENVOI");
+  Serial.println("-> Wifi message sent");
+  Serial.print("- id = ");
+  Serial.println(myData.idMessage);
+  Serial.print("- value = ");
+  Serial.println(myData.value, HEX);
 }
 
 
@@ -244,15 +335,20 @@ void init_wifi() {
 }
 
 
+void checkRestoreConnection() { 
+  // On ajoute le pistolet comme destinataire et on lui envoie une confirmation de connexion
+  esp_now_add_peer(addressCibleAvant, ESP_NOW_ROLE_COMBO, 1, NULL, 0);
+  myData.idMessage = 7; // ID pour dire qu'on demande a se connecter
+  myData.value = 0; // on envoie la couleur de la cible
+  esp_now_send(addressCibleAvant, (uint8_t *) &myData, sizeof(myData));
+
+  esp_now_add_peer(addressCibleArriere, ESP_NOW_ROLE_COMBO, 1, NULL, 0);
+  esp_now_send(addressCibleArriere, (uint8_t *) &myData, sizeof(myData));
+}
+
+
 void init_data() {
   started = (EEPROM.read(100) == 1);
-
-  // Musique
-  for(int i=0; i<28; i++) {
-    musique[i] = EEPROM.read(201+i);
-    Serial.print("musique " + String(i) + " ");
-    Serial.println(musique[i]);
-  }
 
   if(not(started)) {
     player = EEPROM.read(30);
@@ -261,6 +357,21 @@ void init_data() {
     player = EEPROM.read(99);
     role = EEPROM.read(98);
   } 
+
+  for(int i=0; i<6; i++) {
+    addressCibleAvant[i] = EEPROM.read(6+i);
+    addressCibleArriere[i] = EEPROM.read(12+i);
+    Serial.print(addressCibleAvant[i]);
+    Serial.print(":");
+  }
+  Serial.println("");
+
+  // Musique
+  for(int i=0; i<28; i++) {
+    musique[i] = EEPROM.read(201+i);
+    Serial.print("musique " + String(i) + " ");
+    Serial.println(musique[i]);
+  }
 }
 
 
@@ -282,6 +393,7 @@ void setup() {
   init_wifi();
   init_df_player();
   init_data();
+  checkRestoreConnection();
 }
 
 
@@ -348,7 +460,7 @@ void shoot() {
     if(weapon != 2) {
       munitions -= 1;
       myDFPlayer.play(musique[soundShoot[weapon]-1]);
-      irsend.sendNEC(0x0008666 + pow(16,6) + (1+weapon)*pow(16,5) + role*pow(16,4));
+      irsend.sendNEC(0x0008666 + pow(16,6) + (1+weapon)*pow(16,5)*(connectedCibleAvant and connectedCibleArriere) + role*pow(16,4));
       needRefreshMunitions = true;
     }
     else if(not(isShootingLoop)) {
@@ -399,9 +511,17 @@ void gererAttenteDeConnexion() {
 
     if (valueChoice == 1) {
       connectedCibleAvant = true;
+      hasBeenConnectedCible = true;
+      lastConnectionConfirmationAvant = millis();
+      lastConnectionCheckAvant = millis();
+      lastConnectionConfirmationArriere = millis();
+      lastConnectionCheckArriere = millis();
 
-      for(int i=0; i<6; i++)
+      for(int i=0; i<6; i++) {
           addressCibleAvant[i] = addressReceived[i];
+          EEPROM.write(6+i, addressCibleAvant[i]);
+      }
+      EEPROM.commit();
     }
 
     waitingConnectionAnswer = false;
@@ -437,6 +557,24 @@ void affichage() {
   
   if(needRefreshAll)
     lcd.clear();
+
+  if(not(connectedCibleAvant) or not(connectedCibleArriere)) {
+    if(needRefreshAll) {
+      lcd.setCursor(0,0);
+      if(connectedCibleAvant)
+        lcd.print("  CONNECTE AV.  ");
+      else
+        lcd.print("NON CONNECTE AV.");
+
+      lcd.setCursor(0,1);
+      if(connectedCibleArriere)
+        lcd.print("  CONNECTE AR.  ");
+      else
+        lcd.print("NON CONNECTE AR.");
+    }
+    needRefreshAll = false;
+    return;
+  }
 
   // Score
   if(needRefreshAll or needRefreshScore) {
@@ -502,12 +640,139 @@ void affichage() {
 
 
 
+void verifierConnexion() {
+  if(connectedCibleAvant) {
+    if(millis() - lastConnectionConfirmationAvant >= TIME_WAIT_MAX_CHECK_CONNECTION) {
+      connectedCibleAvant = false;
+      needRefreshAll = true;
+    }
+    else if ((millis() - lastConnectionConfirmationAvant >= TIME_WAIT_CHECK_CONNECTION) and (millis() - lastConnectionCheckAvant >= TIME_WAIT_BEFORE_SENDING_AGAIN)) {
+      myData.idMessage = 5;
+      myData.value = uint32_t(float(millis() / 1000.0));
+      lastCheckValueAvant = myData.value;
+      lastConnectionCheckAvant = millis();
+      esp_now_send(addressCibleAvant, (uint8_t *) &myData, sizeof(myData));
+    }
+  }
+
+  if(connectedCibleArriere) {
+    if(millis() - lastConnectionConfirmationArriere >= TIME_WAIT_MAX_CHECK_CONNECTION) {
+      connectedCibleArriere = false;
+      needRefreshAll = true;
+    }
+    else if ((millis() - lastConnectionConfirmationArriere >= TIME_WAIT_CHECK_CONNECTION) and (millis() - lastConnectionCheckArriere >= TIME_WAIT_BEFORE_SENDING_AGAIN)) {
+      myData.idMessage = 5;
+      myData.value = uint32_t(float(millis() / 1000.0));
+      lastCheckValueArriere = myData.value;
+      lastConnectionCheckArriere = millis();
+      esp_now_send(addressCibleArriere, (uint8_t *) &myData, sizeof(myData));
+    }
+  }
+}
+
+
+
+void choixEquipe() {
+  lcd.clear();
+  lcd.setCursor(0,0);
+  lcd.print("  Choix equipe  ");
+  bool confirme = false;
+  bool newColor = true;
+  lcd.setCursor(0,1);
+  String couleur = "noir";
+
+  while(not(confirme) and not(equipeChosen) and connectedCibleAvant and connectedCibleArriere) {
+    verifierConnexion();
+    if(newColor) {
+        lcd.setCursor(0,1);
+        if(hue == 0)
+          couleur = "Rouge";
+        else if(hue == 32)
+          couleur = "Jaune";
+        else if(hue == 64)
+          couleur = "Vert clair";
+        else if(hue == 96)
+          couleur = "Vert";
+        else if(hue == 128)
+          couleur = "Bleu ciel";
+        else if(hue == 160)
+          couleur = "Bleu";
+        else if(hue == 192)
+          couleur = "Violet";
+        else if(hue == 224)
+          couleur = "Rose";
+
+      String s = "";
+      for(int i=0; i<int(float(16-couleur.length())/2.0); i++)
+        s += " ";
+
+      lcd.print(s+couleur+ "    ");
+      newColor = false; 
+
+      myData.idMessage = 20;
+      myData.value = hue;
+      esp_now_send(addressCibleAvant, (uint8_t *) &myData, sizeof(myData));
+      esp_now_send(addressCibleArriere, (uint8_t *) &myData, sizeof(myData));
+    }
+
+    if(checkButtonPress(0)) { // Bleu
+      hue = (hue+32)%256;
+      newColor = true;
+    }
+    else if(checkButtonPress(3)) { // Noir
+      hue = (hue-32)%256;
+      newColor = true;
+    }
+    else if(checkButtonPress(1)) { // Gachete
+      lcd.clear();
+      lcd.setCursor(0, 0);
+      lcd.print("Confirmer " + couleur + " ?");
+      lcd.setCursor(0, 1);
+      lcd.print("Noir:No Bleu:Oui");
+
+      uint32_t timeStart = millis();
+      uint8_t choix = 0;
+      while((choix == 0) and (millis() - timeStart <= 5000)) {
+        verifierConnexion();
+        if(checkButtonPress(0)) // Bleu
+          choix = 1;
+        else if(checkButtonPress(3)) // Noir
+          choix = 2;
+        delay(5);
+      }
+
+      if(choix == 1) {
+        confirme = true;
+        equipeChosen = true;
+
+        myData.idMessage = 9; // ID pour dire qu'on demande a se connecter
+        myData.value = hue; // on envoie la couleur de la cible
+        esp_now_send(addressCibleAvant, (uint8_t *) &myData, sizeof(myData));
+        esp_now_send(addressCibleArriere, (uint8_t *) &myData, sizeof(myData));
+      }
+      else {
+        lcd.clear();
+        lcd.setCursor(0,0);
+        lcd.print("  Choix equipe  ");
+        lcd.setCursor(0,1);
+        newColor = true;
+      }
+    }
+    delay(5);
+  }
+}
+
+
 
 void loop() {
 
   // Si on est en attente de connexion affiche quiv eut se connecter et le choix d'accepter ou de refuser
   // Si on est pas en attente de connexion gère l'affichage de la LED
+  verifierConnexion();
   gererAttenteDeConnexion();
+
+  if(connectedCibleAvant and connectedCibleArriere and not(equipeChosen))
+    choixEquipe();
   
 
   // Gère la fin du chargement

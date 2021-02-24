@@ -23,15 +23,22 @@ uint8_t hueBase = 0;
 #define BLEEP_TIME_WAITING_TO_CONFIRM_CONNECTION 140 // Temps entre chaque changement d'état en attentant la confirmation de la connexion (la période vaut donc x2)
 #define TIME_TURN_IN_GAME 500 // Temps pour faire un tour complet des leds lorsqu'une partie est en cours
 
+#define TIME_WAIT_MAX_CHECK_CONNECTION 750
+
 long timeConnectionProcessStarted = 0;
 uint8_t adressPistolet[] = {0xF4, 0xCF, 0xA2, 0x00, 0x00, 0x00};
+uint8_t addressPistoletSecondaire[] = {0xF4, 0xCF, 0xA2, 0x00, 0x00, 0x00};
 uint8_t addressSelf[] = {0x8C, 0xAA, 0xB5, 0x78, 0x78, 0x8C};
 uint8_t adressAutreCible[] = {0x84, 0xCC, 0xA8, 0x84, 0x3D, 0x18};
 uint8_t addressReceived[] = {0xF4, 0xCF, 0xA2, 0x00, 0x00, 0x00};
 bool connected = false;
+bool hasBeenConnected = false;
 bool tryingToConnect = false;
+bool tryingToReconnect = false;
 uint8_t typeCible = AVANT; // AVANT
 bool ledBlinkState = false;
+uint32_t lastConnectionCheck = 0;
+bool equipeChosen = false;
 
 // For led chips like WS2812, which have a data line, ground, and power, you just
 // need to define DATA_PIN.  For led chipsets that are SPI based (four wires - data, clock,
@@ -139,7 +146,7 @@ void OnDataRecv(uint8_t * mac, uint8_t *incomingData, uint8_t len) {
     Serial.print("CONFIRMATION NEW CONNECTION... ");
 
     // On vérifie que l'on attend toujours une connexion
-    if((not(connected)) and tryingToConnect) {
+    if((not(connected)) and (tryingToConnect or tryingToReconnect)) {
       Serial.print("Timing correct... ");
 
       // On vérifie que c'est bien l'addresse MAC que l'on attendait
@@ -149,7 +156,9 @@ void OnDataRecv(uint8_t * mac, uint8_t *incomingData, uint8_t len) {
 
         if(myData.value == 1) {
           connected = true;
+          hasBeenConnected = true;
           tryingToConnect = false;
+          lastConnectionCheck = millis();
 
           // on enregistre l'adresse du pistolet
           for(int i=0; i<6; i++)
@@ -201,11 +210,42 @@ void OnDataRecv(uint8_t * mac, uint8_t *incomingData, uint8_t len) {
     }
   }
 
+  else if (myData.idMessage == 5) { // Le pistolet vérifie la connection
+    // On renvoie une confirmation
+    myData.idMessage = 6;
+    esp_now_send(adressPistolet, (uint8_t *) &myData, sizeof(myData));
+    lastConnectionCheck = millis();
+  }
+
+  else if (myData.idMessage == 9) { // Le pistolet a validé l equipe
+    equipeChosen = true;
+    hue = myData.value;
+  }
+
   else if (myData.idMessage == 11) { // Le pistolet indique de mourir
     // On vérifie que c'est bien l'addresse MAC que l'on attendait
     if(cestLePistolet) {
       if(vivant)
         mourir();
+    }
+  }
+
+
+  else if (myData.idMessage == 7) {
+    if(hasBeenConnected) {
+      // On ajoute le pistolet comme destinataire et on lui envoie une confirmation de connexion
+      esp_now_add_peer(addressReceived, ESP_NOW_ROLE_COMBO, 1, NULL, 0);
+      myData.idMessage = 8; // ID pour dire qu'on demande a se connecter
+      myData.value = hueBase; // on envoie la couleur de la cible
+      esp_now_send(addressReceived, (uint8_t *) &myData, sizeof(myData));
+    
+      tryingToReconnect = true;
+
+      if(equipeChosen) {
+         myData.idMessage = 9; // ID pour dire qu'on demande a se connecter
+        myData.value = hue; // on envoie la couleur de la cible
+        esp_now_send(addressReceived, (uint8_t *) &myData, sizeof(myData));
+      }
     }
   }
 
@@ -216,6 +256,18 @@ void OnDataRecv(uint8_t * mac, uint8_t *incomingData, uint8_t len) {
       if(not(vivant))
         revivre();
     }
+  }
+
+  else if (myData.idMessage == 13) { // L'autre cible demande si on a été connectée et la couleur
+    myData.value = hue + pow(16,2)*hasBeenConnected + equipeChosen * pow(16,3),
+    myData.idMessage = 14;
+    esp_now_send(addressReceived, (uint8_t *) &myData, sizeof(myData));
+  }
+
+  else if (myData.idMessage == 14) { // L'autre cible demande si on a été connectée et la couleur
+    equipeChosen = (myData.value >= uint32_t(pow(16,3)));
+    hasBeenConnected = (myData.value % uint32_t(pow(16,3)) >= uint32_t(pow(16,2)));
+    hue = uint8_t(myData.value);
   }
   
 
@@ -246,6 +298,7 @@ void setup() {
   Serial.begin(115200);
   EEPROM.begin(EEPROM_SIZE);
   hueBase = EEPROM.read(25);
+  hue = hueBase;
   typeCible = EEPROM.read(24);
 
   // Charge l'adresse MAC
@@ -344,19 +397,18 @@ int numeroLed(int i){
 }
 
 
-void checkRestoreConnection() {
-
-
-  
+void checkRestoreConnection() { 
   // On ajoute le pistolet comme destinataire et on lui envoie une confirmation de connexion
-      esp_now_add_peer(adressPistolet, ESP_NOW_ROLE_COMBO, 1, NULL, 0);
-      myData.idMessage = 1; // ID pour dire qu'on demande a se connecter
-      myData.value = hueBase; // on envoie la couleur de la cible
-      esp_now_send(adressPistolet, (uint8_t *) &myData, sizeof(myData));
+  esp_now_add_peer(adressPistolet, ESP_NOW_ROLE_COMBO, 1, NULL, 0);
+  myData.idMessage = 4; // ID pour dire qu'on demande a se connecter
+  myData.value = hueBase; // on envoie la couleur de la cible
+  esp_now_send(adressPistolet, (uint8_t *) &myData, sizeof(myData));
 
-      // On commence à compter, on a 10s pour confirmer la connexion
-      tryingToConnect = true;
-      timeConnectionProcessStarted = millis();
+  tryingToReconnect = true;
+
+  myData.idMessage = 13; // ID pour dire qu'on demande si l'autre cible est connectée
+  myData.value = 0; //(pas de valeur);
+  esp_now_send(adressAutreCible, (uint8_t *) &myData, sizeof(myData));
 }
 
 
@@ -407,8 +459,18 @@ void touche(uint32_t message) {
 }
 
 void loop() {
+  // On vérifie que l'on recoit régulièrement des uptates du flingue
+  if(connected and (millis() - lastConnectionCheck >= TIME_WAIT_MAX_CHECK_CONNECTION)) {
+    connected = false;
+    Serial.println("WIFI Connection timeout");
+
+    if(not(equipeChosen))
+      hue = hueBase;
+  }
+
+  
   if(not(connected)) {
-    hue = hueBase;
+    //hue = hueBase;
 
     bool change = false;
     if(not(tryingToConnect))  {
@@ -455,12 +517,12 @@ void loop() {
     if(vivant) {
       // On fait "tourner" les LEDs
       if ((millis() - lastUpdateLed) > timeTurn/float(NUM_LEDS)) {
-        leds[numeroLed(currentLed)] = CHSV(0,255,255);
+        leds[numeroLed(currentLed)] = CHSV(hue,255,255);
         currentLed--;
         if (currentLed < 0)
           currentLed = NUM_LEDS - 1;
         for(int i=currentLed-nbLed+1; i<=currentLed; i++)
-          leds[numeroLed(i)] = CHSV(0,0,0);
+          leds[numeroLed(i)] = CHSV(hue,0,0);
         FastLED.show();
         lastUpdateLed = millis();
       }
