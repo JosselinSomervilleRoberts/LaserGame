@@ -22,7 +22,7 @@ Voici les différents types de messages :
 - *idMessage = 4* : se reconnecter (de la part de la cible)
 - *idMessage = 5* : verification de la connection (value: secondes)
 - *idMessage = 6* : confirmation que la connection est toujours active (value: secondes)
-- *idMessage = 7* : se reconnecter (de la part du pistolet) (value: hue)
+- *idMessage = 7* : se reconnecter (de la part du pistolet) 
 - *idMessage = 8* : le plastron accepte la reconnexion (value: hue)
 - *idMessage = 9* : choix d'equipe confirme (value: hue)
 - *idMessage = 10* : cible touchée (value: 3 derniers octets de l'adresse MAC du pistolet qui a touché puis un octer qui vaut 1 si c'est la cible avant, 2 sinon)
