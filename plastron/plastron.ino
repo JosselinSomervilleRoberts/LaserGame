@@ -39,6 +39,7 @@ uint8_t typeCible = AVANT; // AVANT
 bool ledBlinkState = false;
 uint32_t lastConnectionCheck = 0;
 bool equipeChosen = false;
+bool besoinDeFaireAnimationMort = false;
 
 // For led chips like WS2812, which have a data line, ground, and power, you just
 // need to define DATA_PIN.  For led chipsets that are SPI based (four wires - data, clock,
@@ -106,12 +107,6 @@ void OnDataRecv(uint8_t * mac, uint8_t *incomingData, uint8_t len) {
   memcpy(&myData, incomingData, sizeof(myData));
   memcpy(&addressReceived, mac, sizeof(addressReceived));
 
-  Serial.println("-> Wifi message received");
-  Serial.print("- id = ");
-  Serial.println(myData.idMessage);
-  Serial.print("- value = ");
-  Serial.println(myData.value, HEX);
-
   // On regarde si c'est le pistolet qui nous envoie un message
   bool cestLePistolet = true;
   for(int i=0; i<6; i++) {
@@ -133,6 +128,12 @@ void OnDataRecv(uint8_t * mac, uint8_t *incomingData, uint8_t len) {
       cestUnAutrePistolet = false;
   }
 
+  if((myData.idMessage != 4) and (myData.idMessage != 5)) {
+    Serial.println("-> Wifi message received");
+    Serial.print("- id = ");
+    Serial.println(myData.idMessage);
+    Serial.print("- value = ");
+    Serial.println(myData.value, HEX);
 
   if(cestLePistolet)
     Serial.println("- expediteur: pistolet");
@@ -140,6 +141,7 @@ void OnDataRecv(uint8_t * mac, uint8_t *incomingData, uint8_t len) {
     Serial.println("- expediteur: autre cible");
   else if(cestUnAutrePistolet)
     Serial.println("- expediteur: un autre pistolet");
+  }
     
   
   if (myData.idMessage == 2) { // Un pistolet envoie une confirmation de connexion
@@ -362,16 +364,24 @@ void turnOff() {
 }
 
 void mourir() {
-  for(int sat=255; sat>100; sat-=5) {
-    for(int i=0; i<NUM_LEDS; i++)
-      leds[i] = CHSV(0,sat,255);
-  
-    FastLED.show();
-    delay(3);
-  }
-  turnOff();
+  Serial.println("MOURIR");
+  besoinDeFaireAnimationMort = true;
   vivant = false;
   digitalWrite(led2, LOW);
+  Serial.println("MORT TERMINEE");
+}
+
+
+void animationMort() {
+  for(int sat=255; sat>180; sat-=3) {
+    for(int i=0; i<NUM_LEDS; i++)
+      leds[i] = CHSV(hue,sat,255);
+  
+    FastLED.show();
+    delay(6);
+  }
+  turnOff();
+  besoinDeFaireAnimationMort = false;
 }
 
 
@@ -416,10 +426,13 @@ void checkRestoreConnection() {
 void touche(uint32_t message) {
   // Les messages du laser game finissent par 0x66
   // Si ce n'est as le cas, on ignore le message
-  uint32_t checkLaserGame = message % uint32_t(pow(16,4));
+  uint32_t checkLaserGame = message % uint32_t(pow(16,3));
   Serial.println("TOUCHE");
-  
-  if (checkLaserGame == uint32_t(0x8666)) {
+
+  if(connected)
+    checkLaserGame = uint32_t(0x866);
+    
+  if (checkLaserGame == uint32_t(0x866)) {
     message -= checkLaserGame;
     uint32_t uintAddress = message;
     Serial.println("Laser Game checked");
@@ -477,6 +490,8 @@ void loop() {
       if(millis() - lastUpdateLed >= BLEEP_TIME_WAITING_TO_CONNECT) {
         ledBlinkState = not(ledBlinkState);
         change = true;
+        
+        //checkRestoreConnection();
       }
     }
     else if(tryingToConnect) {
@@ -535,12 +550,14 @@ void loop() {
       }  
     }
     else {
+      if(besoinDeFaireAnimationMort)
+        animationMort();
+        
       while (irrecv.decode(&results)) {
         irrecv.resume();
       }
     }
-
-  
   }
+  
   delay(delai);
 }

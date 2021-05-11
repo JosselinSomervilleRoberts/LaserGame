@@ -4,14 +4,14 @@
 #define EEPROM_SIZE 256
 
 // A CHANGER
-uint8_t newMACAddress[] = {0x32, 0x32, 0x32, 0x32, 0x32, 0x01};
+uint8_t newMACAddress[] = {0x32, 0x32, 0x32, 0x32, 0x32, 0x09};
 uint8_t blankMACAddress[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 uint8_t refMACAddress[] = {0x32, 0x32, 0x32, 0x32, 0x32, 0x01};
-uint8_t id = 1;
-uint8_t mainGun = 1;
+uint8_t id = 9;
+uint8_t mainGun = 9;
 
-//uint8_t musiques[] = {4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,1,2,3};
-uint8_t musiques[] = {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28};
+uint8_t musiques[] = {4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,1,2,3};
+//uint8_t musiques[] = {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28};
 
 
 
@@ -62,7 +62,7 @@ void setup() {
   Serial.println(WiFi.macAddress());
 
   for(int i=0; i<6; i++)
-    EEPROM.write(i, refMACAddress[i]);
+    EEPROM.write(i, newMACAddress[i]);
 
 
   // Mac adress des cibles et pistolet secondaire
@@ -76,7 +76,7 @@ void setup() {
 
   // MAC address de ref
   for(int i=0; i<6; i++)
-    EEPROM.write(24+i, blankMACAddress[i]);
+    EEPROM.write(24+i, refMACAddress[i]);
 
 
   // INFO flingue
