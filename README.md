@@ -30,3 +30,4 @@ Voici les différents types de messages :
 - *idMessage = 12* : revivre
 - *idMessage = 20* : changer couleur cible (value: couleur *huer* de la cible)
 - *idMessage = 30* : changement de l'état de la partie (value: 1 pour commencer, 2 pour finir)
+- *idMessage = 35* : avoir tué quelqu'un
