@@ -69,7 +69,7 @@ bool hasBeenConnectedCible = false;
 
 
 // Pour le jeu
-int munitions = 0;
+int munitions = 40;
 bool isReloading = false;
 uint32_t timeStartedReloading = 0;
 int timeReload[] = {2000, 1000, 3000};
@@ -288,6 +288,7 @@ void OnDataRecv(uint8_t * mac, uint8_t *incomingData, uint8_t len) {
       started = (EEPROM.read(100) == 1);
 
       if((millis() < 5000) and started and ((cestCibleAvant and connectedCibleArriere) or (connectedCibleAvant and not(cestCibleAvant)))){
+        munitions = 0;
         vie = EEPROM.read(198);
         respawnsRestants = EEPROM.read(199);
         nb_fois_pistolet_eteint = EEPROM.read(200);
@@ -1361,6 +1362,9 @@ void verifierConnexion() {
       esp_now_send(addressCibleArriere, (uint8_t *) &myData, sizeof(myData));
     }
   }
+
+  if((connectedCibleArriere and not(connectedCibleAvant)) or (connectedCibleAvant and not(connectedCibleArriere)))
+    checkRestoreConnection();
 }
 
 
