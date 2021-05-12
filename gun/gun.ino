@@ -20,6 +20,7 @@
 #define TIME_IMMUNE 200
 
 const int mainGun = 9;
+const String softwareVersion = "2.3";
 
 
 // PINS DEFINITION
@@ -194,35 +195,42 @@ void OnDataRecv(uint8_t * mac, uint8_t *incomingData, uint8_t len) {
 
 
       if(not(connectedCibleAvant)) {
-        String couleur = "No color";
-        if(myData.value == 0)
-          couleur = "rouge";
-        else if(myData.value == 32)
-          couleur = "jaune";
-        else if(myData.value == 64)
-          couleur = "vert c";
-        else if(myData.value == 96)
-          couleur = "vert";
-        else if(myData.value == 128)
-          couleur = "ciel";
-        else if(myData.value == 160)
-          couleur = "bleu";
-        else if(myData.value == 192)
-          couleur = "violet";
-        else if(myData.value == 224)
-          couleur = "rose";
-        hue = myData.value;
-
-        
-        EEPROM.write(200,nb_fois_pistolet_eteint);
-        EEPROM.commit();
-        lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print("Connect " + couleur + " ?");
-        lcd.setCursor(0, 1);
-        lcd.print("Noir:No Bleu:Oui");
+        if(not(connectedCibleArriere)) {
+          String couleur = "No color";
+          if(myData.value == 0)
+            couleur = "rouge";
+          else if(myData.value == 32)
+            couleur = "jaune";
+          else if(myData.value == 64)
+            couleur = "vert c";
+          else if(myData.value == 96)
+            couleur = "vert";
+          else if(myData.value == 128)
+            couleur = "ciel";
+          else if(myData.value == 160)
+            couleur = "bleu";
+          else if(myData.value == 192)
+            couleur = "violet";
+          else if(myData.value == 224)
+            couleur = "rose";
+          hue = myData.value;
   
-        waitingConnectionAnswer = true;
+          
+          EEPROM.write(200,nb_fois_pistolet_eteint);
+          EEPROM.commit();
+          lcd.clear();
+          lcd.setCursor(0, 0);
+          lcd.print("Connect " + couleur + " ?");
+          lcd.setCursor(0, 1);
+          lcd.print("Noir:No Bleu:Oui");
+    
+          waitingConnectionAnswer = true;
+
+          if(not(hasBeenConnectedCible)) {
+            EEPROM.write(100, 0);
+            started = false;
+        }
+        }
       }
       else {
         // Sinon c'est la cible arriere qui se connecte pour la premiere fois
@@ -257,8 +265,10 @@ void OnDataRecv(uint8_t * mac, uint8_t *incomingData, uint8_t len) {
           myData.value = hue;
           esp_now_send(addressCibleAvant, (uint8_t *) &myData, sizeof(myData));
         }
-        else
-          hue = myData.value;
+        else {
+          if(not(hasBeenConnectedCible))
+            hue = myData.value;
+        }
       }
 
       if(cestCibleArriere) {
@@ -272,8 +282,10 @@ void OnDataRecv(uint8_t * mac, uint8_t *incomingData, uint8_t len) {
           myData.value = hue;
           esp_now_send(addressCibleArriere, (uint8_t *) &myData, sizeof(myData));
         }
-        else
-          hue = myData.value;
+        else{
+          if(not(hasBeenConnectedCible))
+            hue = myData.value;
+        }
       }
 
       myData.idMessage = 2; // ID pour dire qu'on confirme la connexion
@@ -288,11 +300,11 @@ void OnDataRecv(uint8_t * mac, uint8_t *incomingData, uint8_t len) {
       started = (EEPROM.read(100) == 1);
 
       if((millis() < 5000) and started and ((cestCibleAvant and connectedCibleArriere) or (connectedCibleAvant and not(cestCibleAvant)))){
+        recupererParametres();
         munitions = 0;
         vie = EEPROM.read(198);
         respawnsRestants = EEPROM.read(199);
         nb_fois_pistolet_eteint = EEPROM.read(200);
-        recupererParametres();
         
         if(vie == 0) {
           if(respawnsRestants > 0) {
@@ -334,6 +346,7 @@ void OnDataRecv(uint8_t * mac, uint8_t *incomingData, uint8_t len) {
       myData.idMessage = 2; // ID pour dire qu'on confirme la connexion
       myData.value = 1; // Accepter
       esp_now_send(addressReceived, (uint8_t *) &myData, sizeof(myData));
+      sendParametersCibles();
 
       if(cestCibleAvant) {
         connectedCibleAvant = true;
@@ -414,25 +427,42 @@ void OnDataRecv(uint8_t * mac, uint8_t *incomingData, uint8_t len) {
   if (myData.idMessage == 40) { // changement du nombre de vie max
     r_nbRespawns = myData.value;
     vie = r_nbRespawns;
+    EEPROM.write(193, r_nbRespawns);
+    EEPROM.commit();
   }
 
   if (myData.idMessage == 41) { // changement du nombre de morts
     r_nbMortsDefinitives = myData.value;
+    EEPROM.write(194, r_nbMortsDefinitives);
+    EEPROM.commit();
   }
 
   if (myData.idMessage == 42) { // changement du temps de respawn
     r_timeRespawn = (long)(myData.value) * 1000;
+    EEPROM.write(195, uint8_t((float)(r_timeRespawn/1000.0)));
+    EEPROM.commit();
   }
 
   if (myData.idMessage == 43) { // changement du temps de jeu
     r_timeGameDuration = 60000*myData.value;
+    EEPROM.write(196, uint8_t((float)(r_timeGameDuration/60000.0)));
+    EEPROM.commit();
   }
 
   if (myData.idMessage == 44) { // changement de si le gilet s'allume ou non
-    if(myData.value == 1)
+    if(myData.value == 1) {
       light_on = true;
-    else
+      EEPROM.write(197, 1);
+    }
+    else {
       light_on = false;
+      EEPROM.write(197, 0);
+  }
+      
+    esp_now_send(addressCibleAvant, (uint8_t *) &myData, sizeof(myData));
+    esp_now_send(addressCibleArriere, (uint8_t *) &myData, sizeof(myData));
+    
+    EEPROM.commit();
   }
 
 
@@ -449,7 +479,10 @@ void startGame() {
     EEPROM.write(199, respawnsRestants);
     vie = r_viesMax;
     EEPROM.write(198, vie);
-    EEPROM.write(197, light_on);
+    if(light_on)
+      EEPROM.write(197, 1);
+    else
+      EEPROM.write(197, 0);
     EEPROM.write(196, uint8_t((float)(r_timeGameDuration/60000.0)));
     EEPROM.write(195, uint8_t((float)(r_timeRespawn/1000.0)));
     EEPROM.write(194, r_nbMortsDefinitives);
@@ -464,11 +497,14 @@ void startGame() {
 }
 
 void recupererParametres() {
-  light_on = EEPROM.read(197);
+  light_on = (EEPROM.read(197) == 1);
   r_timeGameDuration = 60000*EEPROM.read(196);
   r_timeRespawn = 1000*EEPROM.read(195);
   r_nbMortsDefinitives = EEPROM.read(194);
   r_nbRespawns = EEPROM.read(193);
+
+  if(connectedCibleAvant or connectedCibleArriere)
+    sendParametersCibles();
 }
 
 
@@ -601,16 +637,26 @@ void init_wifi() {
   }
 }
 
-
-void checkRestoreConnection() { 
+void checkRestoreConnectionAvant() { 
   // On ajoute le pistolet comme destinataire et on lui envoie une confirmation de connexion
-  esp_now_add_peer(addressCibleAvant, ESP_NOW_ROLE_COMBO, 1, NULL, 0);
   myData.idMessage = 7; // ID pour dire qu'on demande a se connecter
   myData.value = 0; // on envoie la couleur de la cible
+  esp_now_add_peer(addressCibleAvant, ESP_NOW_ROLE_COMBO, 1, NULL, 0);
   esp_now_send(addressCibleAvant, (uint8_t *) &myData, sizeof(myData));
+}
 
+void checkRestoreConnectionArriere() { 
+  // On ajoute le pistolet comme destinataire et on lui envoie une confirmation de connexion
+  myData.idMessage = 7; // ID pour dire qu'on demande a se connecter
+  myData.value = 0; // on envoie la couleur de la cible
   esp_now_add_peer(addressCibleArriere, ESP_NOW_ROLE_COMBO, 1, NULL, 0);
   esp_now_send(addressCibleArriere, (uint8_t *) &myData, sizeof(myData));
+}
+
+
+void checkRestoreConnection() { 
+  checkRestoreConnectionAvant();
+  checkRestoreConnectionArriere();
 }
 
 
@@ -681,8 +727,23 @@ void setup() {
 }
 
 
+void sendParametersCibles() {
+  // On envoie light_on
+    if(not(started)) {
+    myData.idMessage = 44;
+    if(light_on)
+      myData.value = 1;
+    else
+      myData.value = 0;
+    esp_now_send(addressCibleAvant, (uint8_t *) &myData, sizeof(myData));
+    esp_now_send(addressCibleArriere, (uint8_t *) &myData, sizeof(myData));
+  }
+}
+
 void sendParameters()
 {
+  sendParametersCibles();
+          
   uint8_t adressGuns[] = {0x32, 0x32, 0x32, 0x32, 0x32, 0x00};
   for(int p=1; p<=9; p++) {
     if(p != player) {
@@ -714,7 +775,10 @@ void sendParameters()
 
       // gilets allumés
       myData.idMessage = 44;
-      myData.value = light_on;
+      if(light_on)
+        myData.value = 1;
+      else
+        myData.value = 0;
       esp_now_send(adressGuns, (uint8_t *) &myData, sizeof(myData));
       delay(5);
     }
@@ -725,11 +789,13 @@ void sendParameters()
 void chooseRules() {
   //if(player != 1) return;
 
-  r_timeRespawn      = 1000 *  chooseValue("Duree de la mort", 8, 1, "s");
-  r_nbRespawns       = 1    *  chooseValue("Nb. de respawns ", 3, 1, "");
-  r_nbMortsDefinitives = 1   * chooseValue("Nb. morts defs  ", 10, 1, "");
-  r_timeGameDuration = 60000 * chooseValue("Temps de jeu    ", 20, 1, "min");
-  light_on           =        chooseBinary("Gilets allumes ?", true);
+  r_timeRespawn      = 1000 *  chooseValue("Duree de la mort", r_timeRespawn/1000, 1, "s");
+  r_nbRespawns       = 1    *  chooseValue("Nb. de respawns ", r_nbRespawns, 1, "");
+  r_nbMortsDefinitives = 1   * chooseValue("Nb. morts defs  ", r_nbMortsDefinitives, 1, "");
+  r_timeGameDuration = 60000 * chooseValue("Temps de jeu    ", r_timeGameDuration/60000, 1, "min");
+  light_on           =        chooseBinary("Gilets allumes ?", light_on);
+  
+  sendParameters();
 }
 
 
@@ -756,7 +822,8 @@ long chooseValue(String titre, int baseValue, long multiplier, String unite) {
         inc = 10;
       else
         inc = 50;
-      k = min(255, k+inc);
+      k += inc;
+      if(k > 255) k=0;
       changed = true;
     }
     else if(checkButtonPress(3)) { // Noir
@@ -768,7 +835,8 @@ long chooseValue(String titre, int baseValue, long multiplier, String unite) {
         inc = 10;
       else
         inc = 50;
-      k = max(0, k-inc);
+      k -= inc;
+      if(k < 0) k = 255;
       changed = true;
     }
 
@@ -1004,6 +1072,7 @@ void mourir(uint8_t playerShoot, uint8_t typeCibleShoot, bool shooterAllie, uint
   else
     score += r_ennemyBeingShotScore;
   needRefreshScore = true;
+  needRefreshAll = true;
   
   if(typeCibleShoot == 1) { // Avant
     if(roleShoot == 1) // Principal
@@ -1071,6 +1140,7 @@ void revivre() {
     vie = r_viesMax;
     munitions = munitionsMax[weapon];
     needRefreshAll = true;
+    tue = false;
     
     EEPROM.write(199,respawnsRestants);
     EEPROM.write(198,vie);
@@ -1165,15 +1235,24 @@ void affichage() {
     if(needRefreshAll) {
       lcd.setCursor(0,0);
       if(connectedCibleAvant)
-        lcd.print("  CONNECTE AV.  ");
+        lcd.print("CONNECT AV");
       else
-        lcd.print("NON CONNECTE AV.");
+        lcd.print(" DECO AV  ");
 
       lcd.setCursor(0,1);
       if(connectedCibleArriere)
-        lcd.print("  CONNECTE AR.  ");
+        lcd.print("CONNECT AR");
       else
-        lcd.print("NON CONNECTE AR.");
+        lcd.print(" DECO AR  ");
+
+       lcd.setCursor(11,0);
+       if(player == mainGun)
+        lcd.print("|Main");
+       else
+       lcd.print("| P" + String(player) + " ");
+
+       lcd.setCursor(11,1);
+       lcd.print("|v" + softwareVersion);
     }
     needRefreshAll = false;
     return;
@@ -1200,21 +1279,20 @@ void affichage() {
   }
   else if(started) {
     if((respawnsRestants <= 0) and not(vivant)) {
-      lcd.setCursor(0,0);
-      lcd.print("MORT DEFINITIVE ");
-      lcd.setCursor(0,1);
-      if(nb_fois_pistolet_eteint < r_nbMortsDefinitives) {
-        lcd.print("Retour base -   ");
+      if(needRefreshAll) {
+        lcd.setCursor(0,0);
+        lcd.print("MORT DEFINITIVE ");
+        lcd.setCursor(0,1);
+        if(nb_fois_pistolet_eteint < r_nbMortsDefinitives) {
+          lcd.print("Retour base -   ");
+        }
+        else {
+          lcd.print("Out respawn -   ");
+        }
+        lcd.setCursor(14,1);
+        lcd.print(String(nb_fois_pistolet_eteint));
+        needRefreshAll = false;
       }
-      else {
-        lcd.print("Out respawn -   ");
-      }
-      lcd.setCursor(14,1);
-      lcd.print(String(nb_fois_pistolet_eteint));
-      needRefreshAll = false;
-      needRefreshScore = false;
-      needRefreshWeapon = false;
-      needRefreshMunitions = false;
       return;
     }
   
@@ -1363,8 +1441,23 @@ void verifierConnexion() {
     }
   }
 
-  if((connectedCibleArriere and not(connectedCibleAvant)) or (connectedCibleAvant and not(connectedCibleArriere)))
-    checkRestoreConnection();
+
+  // Reconnexion si on a qu'une seule des 2 cibles connectées
+  if(hasBeenConnectedCible) {
+    if(connectedCibleArriere and not(connectedCibleAvant)) {
+      if (millis() - lastConnectionCheckAvant >= TIME_WAIT_CHECK_CONNECTION) {
+        checkRestoreConnectionAvant();
+        lastConnectionCheckAvant = millis();
+      }
+    }
+
+    if(connectedCibleAvant and not(connectedCibleArriere)) {
+      if (millis() - lastConnectionCheckArriere >= TIME_WAIT_CHECK_CONNECTION) {
+        checkRestoreConnectionArriere();
+        lastConnectionCheckArriere = millis();
+      }
+    }
+  }
 }
 
 
@@ -1377,10 +1470,12 @@ void choixEquipe() {
   bool newColor = true;
   lcd.setCursor(0,1);
   String couleur = "noir";
+  hue = 32 * uint8_t(hue/32);
 
   while(not(confirme) and not(equipeChosen) and connectedCibleAvant and connectedCibleArriere) {
     verifierConnexion();
     if(newColor) {
+      Serial.println(hue);
         lcd.setCursor(0,1);
         if(hue == 0)
           couleur = "Rouge";

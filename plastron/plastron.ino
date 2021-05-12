@@ -40,6 +40,7 @@ bool ledBlinkState = false;
 uint32_t lastConnectionCheck = 0;
 bool equipeChosen = false;
 bool besoinDeFaireAnimationMort = false;
+bool light_on = true;
 
 // For led chips like WS2812, which have a data line, ground, and power, you just
 // need to define DATA_PIN.  For led chipsets that are SPI based (four wires - data, clock,
@@ -176,6 +177,9 @@ void OnDataRecv(uint8_t * mac, uint8_t *incomingData, uint8_t len) {
             myData.value = uint32_t(value); // adresseMAC
             esp_now_send(adressAutreCible, (uint8_t *) &myData, sizeof(myData));
           }
+
+          if(not(light_on))
+            turnOff();
         }
         else if(myData.value == 2) {
           tryingToConnect = false;
@@ -289,7 +293,17 @@ void OnDataRecv(uint8_t * mac, uint8_t *incomingData, uint8_t len) {
         partieEnCours = false;
     }     
   }
-}
+
+  else if (myData.idMessage == 44) { // Light on
+    light_on = (myData.value == 1);
+    if(equipeChosen) {
+      if(light_on)
+        turnOn();
+      else
+        turnOff();
+    }
+  }
+} 
 
 
 // Callback when data is sent
@@ -387,7 +401,10 @@ void animationMort() {
 
 void revivre() {
   vivant = true;
-  turnOn();
+  if(light_on)
+    turnOn();
+  else
+    turnOff();
   lastUpdateLed = millis();
   currentLed = NUM_LEDS-1;
   digitalWrite(led2, HIGH);
@@ -433,7 +450,7 @@ void touche(uint32_t message) {
     checkLaserGame = uint32_t(0x866);
     
   if (checkLaserGame == uint32_t(0x866)) {
-    message -= checkLaserGame;
+    message -= message % uint32_t(pow(16,3));
     uint32_t uintAddress = message;
     Serial.println("Laser Game checked");
 
@@ -447,7 +464,7 @@ void touche(uint32_t message) {
       message -= adressPart * pow(16,8-2*nbBytesMAC+2*i);
     }
 
-    if((not(connected)) and (typeCible == AVANT)) {
+    if((not(connected)) and (typeCible == AVANT) and not(hasBeenConnected)) {
       // On copie l'adresse du pistolet
       for(int i=0; i<6; i++)
         adressPistolet[i] = address[i];
@@ -531,15 +548,17 @@ void loop() {
 
     if(vivant) {
       // On fait "tourner" les LEDs
-      if ((millis() - lastUpdateLed) > timeTurn/float(NUM_LEDS)) {
-        leds[numeroLed(currentLed)] = CHSV(hue,255,255);
-        currentLed--;
-        if (currentLed < 0)
-          currentLed = NUM_LEDS - 1;
-        for(int i=currentLed-nbLed+1; i<=currentLed; i++)
-          leds[numeroLed(i)] = CHSV(hue,0,0);
-        FastLED.show();
-        lastUpdateLed = millis();
+      if(light_on) {
+        if ((millis() - lastUpdateLed) > timeTurn/float(NUM_LEDS)) {
+          leds[numeroLed(currentLed)] = CHSV(hue,255,255);
+          currentLed--;
+          if (currentLed < 0)
+            currentLed = NUM_LEDS - 1;
+          for(int i=currentLed-nbLed+1; i<=currentLed; i++)
+            leds[numeroLed(i)] = CHSV(hue,0,0);
+          FastLED.show();
+          lastUpdateLed = millis();
+        }
       }
       
       if (irrecv.decode(&results)) {
