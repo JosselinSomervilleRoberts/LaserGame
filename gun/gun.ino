@@ -19,7 +19,6 @@
 
 #define TIME_IMMUNE 200
 
-const int mainGun = 9;
 const String softwareVersion = "2.3";
 
 
@@ -68,6 +67,9 @@ uint32_t lastCheckValueAvant = 0;
 uint32_t lastCheckValueArriere = 0;
 bool hasBeenConnectedCible = false;
 
+uint8_t redondanceEnvoi = 5;
+uint8_t delaiEnvoi = 5;
+
 
 // Pour le jeu
 int munitions = 40;
@@ -92,7 +94,7 @@ long timeStartedBeingImmune = 0;
 
 // Stats
 int score = 0;
-float vie = 0;
+int vie = 0;
 uint8_t kills = 0;
 uint8_t deaths = 0;
 bool vivant = true;
@@ -153,6 +155,18 @@ uint8_t nb_fois_pistolet_eteint = 0;
 
 
 
+// ADMIN Mode
+bool admin = false;
+bool enteringCodeMenu = false;
+bool inAdminMenu = false;
+bool inCodeMenu = false;
+uint32_t timeStartedEnteringCodeMenu = 0;
+uint32_t timeToEnterCodeMenu = 3000;
+uint8_t code[] = {2,2,2,3,0,3,2,0,3,3,2};
+uint8_t codeTape[16] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+uint8_t longueurCodeTape = 0;
+
+
 typedef struct struct_message {
   uint8_t idMessage;
   uint32_t value;
@@ -160,6 +174,32 @@ typedef struct struct_message {
 
 // Create a struct_message called myData
 struct_message myData;
+
+
+void deconnecter() {
+  if(connectedCibleAvant) {
+    myData.idMessage = 50;
+    myData.value = 0;
+    esp_now_send(addressCibleAvant, (uint8_t *) &myData, sizeof(myData));
+  }
+
+  if(connectedCibleArriere) {
+    myData.idMessage = 50;
+    myData.value = 0;
+    esp_now_send(addressCibleArriere, (uint8_t *) &myData, sizeof(myData));
+  }
+
+  waitingConnectionAnswer = false;
+  connectedCibleAvant = false;
+  connectedCibleArriere = false;
+  lastConnectionCheckAvant = 0;
+  lastConnectionCheckArriere = 0;
+  lastConnectionConfirmationAvant = 0;
+  lastConnectionConfirmationArriere = 0;
+  lastCheckValueAvant = 0;
+  lastCheckValueArriere = 0;
+  hasBeenConnectedCible = false;
+}
 
 
 
@@ -467,7 +507,7 @@ void OnDataRecv(uint8_t * mac, uint8_t *incomingData, uint8_t len) {
 
 
   if (myData.idMessage == 30) { // Start the game
-    startGame();
+    if(not(started)) startGame();
   }
 }
 
@@ -735,8 +775,13 @@ void sendParametersCibles() {
       myData.value = 1;
     else
       myData.value = 0;
-    esp_now_send(addressCibleAvant, (uint8_t *) &myData, sizeof(myData));
-    esp_now_send(addressCibleArriere, (uint8_t *) &myData, sizeof(myData));
+
+    for(int j=0; j<redondanceEnvoi; j++) {
+      esp_now_send(addressCibleAvant, (uint8_t *) &myData, sizeof(myData));
+      delay(delaiEnvoi);
+      esp_now_send(addressCibleArriere, (uint8_t *) &myData, sizeof(myData));
+      delay(delaiEnvoi);
+    }
   }
 }
 
@@ -745,42 +790,44 @@ void sendParameters()
   sendParametersCibles();
           
   uint8_t adressGuns[] = {0x32, 0x32, 0x32, 0x32, 0x32, 0x00};
-  for(int p=1; p<=9; p++) {
-    if(p != player) {
-      adressGuns[5] = p;
-
-      // NB respawns
-      myData.idMessage = 40;
-      myData.value = r_nbRespawns;
-      esp_now_send(adressGuns, (uint8_t *) &myData, sizeof(myData));
-      delay(5);
-
-      // NB morts definitives
-      myData.idMessage = 41;
-      myData.value = r_nbMortsDefinitives;
-      esp_now_send(adressGuns, (uint8_t *) &myData, sizeof(myData));
-      delay(5);
-
-      // Temps de respawn
-      myData.idMessage = 42;
-      myData.value = (float)(r_timeRespawn / 1000.0);
-      esp_now_send(adressGuns, (uint8_t *) &myData, sizeof(myData));
-      delay(5);
-
-      // Temps de jeu
-      myData.idMessage = 43;
-      myData.value = r_timeGameDuration / 60000;
-      esp_now_send(adressGuns, (uint8_t *) &myData, sizeof(myData));
-      delay(5);
-
-      // gilets allumés
-      myData.idMessage = 44;
-      if(light_on)
-        myData.value = 1;
-      else
-        myData.value = 0;
-      esp_now_send(adressGuns, (uint8_t *) &myData, sizeof(myData));
-      delay(5);
+  for(int j=0; j<redondanceEnvoi; j++) {
+    for(int p=1; p<=9; p++) {
+      if(p != player) {
+        adressGuns[5] = p;
+  
+        // NB respawns
+        myData.idMessage = 40;
+        myData.value = r_nbRespawns;
+        esp_now_send(adressGuns, (uint8_t *) &myData, sizeof(myData));
+        delay(delaiEnvoi);
+  
+        // NB morts definitives
+        myData.idMessage = 41;
+        myData.value = r_nbMortsDefinitives;
+        esp_now_send(adressGuns, (uint8_t *) &myData, sizeof(myData));
+        delay(delaiEnvoi);
+  
+        // Temps de respawn
+        myData.idMessage = 42;
+        myData.value = (float)(r_timeRespawn / 1000.0);
+        esp_now_send(adressGuns, (uint8_t *) &myData, sizeof(myData));
+        delay(delaiEnvoi);
+  
+        // Temps de jeu
+        myData.idMessage = 43;
+        myData.value = r_timeGameDuration / 60000;
+        esp_now_send(adressGuns, (uint8_t *) &myData, sizeof(myData));
+        delay(delaiEnvoi);
+  
+        // gilets allumés
+        myData.idMessage = 44;
+        if(light_on)
+          myData.value = 1;
+        else
+          myData.value = 0;
+        esp_now_send(adressGuns, (uint8_t *) &myData, sizeof(myData));
+        delay(delaiEnvoi);
+      }
     }
   }
 }
@@ -1246,7 +1293,7 @@ void affichage() {
         lcd.print(" DECO AR  ");
 
        lcd.setCursor(11,0);
-       if(player == mainGun)
+       if(admin)
         lcd.print("|Main");
        else
        lcd.print("| P" + String(player) + " ");
@@ -1258,7 +1305,7 @@ void affichage() {
     return;
   }
   else if(needRefreshAll and not(started)) {
-     if(player == mainGun) {
+     if(admin) {
       lcd.setCursor(0,0);
       lcd.print("Noir: regles");
       lcd.setCursor(0,1);
@@ -1565,6 +1612,28 @@ void choixEquipe() {
 
 
 void loop() {
+  // ADMIN Mode
+  if(inAdminMenu)
+    menuAdmin();
+  else if(inCodeMenu) {
+    if(admin) {
+      inCodeMenu = false;
+      inAdminMenu = true;
+    }
+    else
+      menuCode();
+  }
+  else if(checkButtonPressed(0) and checkButtonPressed(2) and checkButtonPressed(3)) {
+    if(enteringCodeMenu) {
+      if(millis() - timeStartedEnteringCodeMenu > timeToEnterCodeMenu)
+        inCodeMenu = true;
+        enteringCodeMenu = false;
+    }
+    else {
+      enteringCodeMenu = true;
+      timeStartedEnteringCodeMenu = millis();
+    }
+  }
 
   // Si on est en attente de connexion affiche quiv eut se connecter et le choix d'accepter ou de refuser
   // Si on est pas en attente de connexion gère l'affichage de la LED
@@ -1579,7 +1648,7 @@ void loop() {
   if(equipeChosen and not(started)) {
     affichage();
 
-    if(player == mainGun) {
+    if(admin) {
       if(checkButtonPress(3)) { // Noir
         chooseRules();
         needRefreshAll = true;
@@ -1668,3 +1737,48 @@ void loop() {
 
   delay(4);
 }
+
+
+
+void menuCode() {
+  // Rouge
+  if((longueurCodeTape < 16) and checkButtonPress(2)) {
+    codeTape[longueurCodeTape] = 2;
+    longueurCodeTape++;
+  }
+
+  // Noir
+  if((longueurCodeTape < 16) and checkButtonPress(3)) {
+    codeTape[longueurCodeTape] = 3;
+    longueurCodeTape++;
+  }
+
+  // Bleu
+  if((longueurCodeTape < 16) and checkButtonPress(0)) {
+    codeTape[longueurCodeTape] = 0;
+    longueurCodeTape++;
+  }
+
+  // Validation
+  if((longueurCodeTape == 11) and checkButtonPress(1)) {
+    bool same = true;
+    for(int i=0; i<longueurCodeTape; i++) {
+      if(code[i] != codeTape[i]) same = false;
+    }
+
+    if(same) {
+      inAdminMenu = true;
+      inCodeMenu = false;
+      longueurCodeTape = 0;
+    }
+    else {
+      admin = false;
+      inAdminMenu = false;
+      inCodeMenu = false;
+      longueurCodeTape = 0;
+    }
+  }
+}
+
+
+void menuAdmin() {}

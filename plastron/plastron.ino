@@ -104,6 +104,25 @@ struct_message myData;
 
 
 
+
+void deconnecter() {
+  // On déconnecte en mettant toutes les variabels a False
+  connected = false;
+  hasBeenConnected = false;
+  tryingToConnect = false;
+  tryingToReconnect = false;
+  lastConnectionCheck = 0;
+  timeConnectionProcessStarted = 0;
+
+  // On efface l'adresse du pistolet
+  for(int i=0; i<6; i++)
+    EEPROM.write(12+i, 0);
+  EEPROM.commit();
+  adressPistolet[5] = 0;
+}
+
+
+
 void OnDataRecv(uint8_t * mac, uint8_t *incomingData, uint8_t len) {
   memcpy(&myData, incomingData, sizeof(myData));
   memcpy(&addressReceived, mac, sizeof(addressReceived));
