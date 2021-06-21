@@ -1,0 +1,36 @@
+<?xml version="1.0" standalone="no" ?>
+<!DOCTYPE project PUBLIC "-//audacityproject-1.3.0//DTD//EN" "http://audacity.sourceforge.net/xml/audacityproject-1.3.0.dtd" >
+<project xmlns="http://audacity.sourceforge.net/xml/" projname="shotgun_reload_new_data" version="1.3.0" audacityversion="2.4.2" sel0="0.2075736961" sel1="0.9294104308" vpos="0" h="0.0000000000" zoom="322.7904486651" rate="44100.0" snapto="off" selectionformat="hh:mm:ss + milliseconds" frequencyformat="Hz" bandwidthformat="octaves">
+	<tags>
+		<tag name="Software" value="Lavf57.56.101"/>
+		<tag name="YEAR" value="20151024"/>
+		<tag name="major_brand" value="dash"/>
+		<tag name="minor_version" value="0"/>
+		<tag name="ARTIST" value="Royalty King"/>
+		<tag name="compatible_brands" value="iso6mp41"/>
+		<tag name="purl" value="https://www.youtube.com/watch?v=y-RCKubsfpg"/>
+		<tag name="comment" value="Subscribe for more royalty free sound effects."/>
+		<tag name="description" value="Subscribe for more royalty free sound effects."/>
+		<tag name="TITLE" value="Shotgun Reload Sound Effect (Royalty Free) HD"/>
+	</tags>
+	<wavetrack name="shotgun-reload-sound-effect-royalty-free-hd" isSelected="0" height="150" minimized="0" channel="0" linked="1" mute="0" solo="0" rate="44100" gain="1.0" pan="0.0" colorindex="0">
+		<waveclip offset="0.20757370" colorindex="0">
+			<sequence maxsamples="262144" sampleformat="262159" numsamples="31833">
+				<waveblock start="0">
+					<simpleblockfile filename="e08088ed.au" len="31833" min="-0.719816" max="0.65913" rms="0.065511"/>
+				</waveblock>
+			</sequence>
+			<envelope numpoints="0"/>
+		</waveclip>
+	</wavetrack>
+	<wavetrack name="shotgun-reload-sound-effect-royalty-free-hd" isSelected="0" height="150" minimized="0" channel="1" linked="0" mute="0" solo="0" rate="44100" gain="1.0" pan="0.0" colorindex="0">
+		<waveclip offset="0.20757370" colorindex="0">
+			<sequence maxsamples="262144" sampleformat="262159" numsamples="31833">
+				<waveblock start="0">
+					<simpleblockfile filename="e0808d87.au" len="31833" min="-0.720158" max="0.659838" rms="0.065607"/>
+				</waveblock>
+			</sequence>
+			<envelope numpoints="0"/>
+		</waveclip>
+	</wavetrack>
+</project>

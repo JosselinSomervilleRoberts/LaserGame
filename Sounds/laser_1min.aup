@@ -1,0 +1,103 @@
+<?xml version="1.0" standalone="no" ?>
+<!DOCTYPE project PUBLIC "-//audacityproject-1.3.0//DTD//EN" "http://audacity.sourceforge.net/xml/audacityproject-1.3.0.dtd" >
+<project xmlns="http://audacity.sourceforge.net/xml/" projname="laser_1min_data" version="1.3.0" audacityversion="2.4.2" sel0="26.8770975057" sel1="26.8770975057" vpos="0" h="20.5032199546" zoom="86.1328125000" rate="44100.0" snapto="off" selectionformat="hh:mm:ss + milliseconds" frequencyformat="Hz" bandwidthformat="octaves">
+	<tags/>
+	<wavetrack name="531083__ryusa__laser-power-charge-loop-pitch-up" isSelected="1" height="390" minimized="0" channel="0" linked="1" mute="0" solo="0" rate="44100" gain="1.0" pan="0.0" colorindex="0">
+		<waveclip offset="0.00000000" colorindex="0">
+			<sequence maxsamples="262144" sampleformat="262159" numsamples="2628243">
+				<waveblock start="0">
+					<simpleblockfile filename="e0808672.au" len="170586" min="-0.199097" max="0.171295" rms="0.045282"/>
+				</waveblock>
+				<waveblock start="170586">
+					<simpleblockfile filename="e08085be.au" len="209272" min="-0.199097" max="0.171295" rms="0.045074"/>
+				</waveblock>
+				<waveblock start="379858">
+					<simpleblockfile filename="e08082b2.au" len="209273" min="-0.199097" max="0.171295" rms="0.044952"/>
+				</waveblock>
+				<waveblock start="589131">
+					<simpleblockfile filename="e0808b2b.au" len="209272" min="-0.199097" max="0.171295" rms="0.044733"/>
+				</waveblock>
+				<waveblock start="798403">
+					<simpleblockfile filename="e0808469.au" len="209273" min="-0.199097" max="0.171295" rms="0.045389"/>
+				</waveblock>
+				<waveblock start="1007676">
+					<simpleblockfile filename="e0808f75.au" len="255879" min="-0.199097" max="0.171295" rms="0.045282"/>
+				</waveblock>
+				<waveblock start="1263555">
+					<simpleblockfile filename="e08084da.au" len="170586" min="-0.199097" max="0.171295" rms="0.045282"/>
+				</waveblock>
+				<waveblock start="1434141">
+					<simpleblockfile filename="e08082d2.au" len="170586" min="-0.199097" max="0.171295" rms="0.045282"/>
+				</waveblock>
+				<waveblock start="1604727">
+					<simpleblockfile filename="e0808fea.au" len="170586" min="-0.199097" max="0.171295" rms="0.045282"/>
+				</waveblock>
+				<waveblock start="1775313">
+					<simpleblockfile filename="e0808b46.au" len="170586" min="-0.199097" max="0.171295" rms="0.045282"/>
+				</waveblock>
+				<waveblock start="1945899">
+					<simpleblockfile filename="e0808797.au" len="170586" min="-0.199097" max="0.171295" rms="0.045282"/>
+				</waveblock>
+				<waveblock start="2116485">
+					<simpleblockfile filename="e08083bf.au" len="170586" min="-0.199097" max="0.171295" rms="0.045282"/>
+				</waveblock>
+				<waveblock start="2287071">
+					<simpleblockfile filename="e0808703.au" len="170586" min="-0.199097" max="0.171295" rms="0.045282"/>
+				</waveblock>
+				<waveblock start="2457657">
+					<simpleblockfile filename="e08086a4.au" len="170586" min="-0.199097" max="0.171295" rms="0.045282"/>
+				</waveblock>
+			</sequence>
+			<envelope numpoints="0"/>
+		</waveclip>
+	</wavetrack>
+	<wavetrack name="531083__ryusa__laser-power-charge-loop-pitch-up" isSelected="1" height="390" minimized="0" channel="1" linked="0" mute="0" solo="0" rate="44100" gain="1.0" pan="0.0" colorindex="0">
+		<waveclip offset="0.00000000" colorindex="0">
+			<sequence maxsamples="262144" sampleformat="262159" numsamples="2628243">
+				<waveblock start="0">
+					<simpleblockfile filename="e0808b99.au" len="170586" min="-0.169189" max="0.171478" rms="0.042943"/>
+				</waveblock>
+				<waveblock start="170586">
+					<simpleblockfile filename="e0808b66.au" len="209272" min="-0.169189" max="0.182254" rms="0.042964"/>
+				</waveblock>
+				<waveblock start="379858">
+					<simpleblockfile filename="e08080f7.au" len="209273" min="-0.169189" max="0.165253" rms="0.042818"/>
+				</waveblock>
+				<waveblock start="589131">
+					<simpleblockfile filename="e0808a32.au" len="209272" min="-0.169189" max="0.165253" rms="0.042756"/>
+				</waveblock>
+				<waveblock start="798403">
+					<simpleblockfile filename="e0808b1f.au" len="209273" min="-0.169189" max="0.170126" rms="0.042887"/>
+				</waveblock>
+				<waveblock start="1007676">
+					<simpleblockfile filename="e0808366.au" len="255879" min="-0.169189" max="0.171478" rms="0.042943"/>
+				</waveblock>
+				<waveblock start="1263555">
+					<simpleblockfile filename="e0808be6.au" len="170586" min="-0.169189" max="0.171478" rms="0.042943"/>
+				</waveblock>
+				<waveblock start="1434141">
+					<simpleblockfile filename="e080870a.au" len="170586" min="-0.169189" max="0.171478" rms="0.042943"/>
+				</waveblock>
+				<waveblock start="1604727">
+					<simpleblockfile filename="e0808b4b.au" len="170586" min="-0.169189" max="0.171478" rms="0.042943"/>
+				</waveblock>
+				<waveblock start="1775313">
+					<simpleblockfile filename="e080808b.au" len="170586" min="-0.169189" max="0.171478" rms="0.042943"/>
+				</waveblock>
+				<waveblock start="1945899">
+					<simpleblockfile filename="e0808936.au" len="170586" min="-0.169189" max="0.171478" rms="0.042943"/>
+				</waveblock>
+				<waveblock start="2116485">
+					<simpleblockfile filename="e0808d50.au" len="170586" min="-0.169189" max="0.171478" rms="0.042943"/>
+				</waveblock>
+				<waveblock start="2287071">
+					<simpleblockfile filename="e080890b.au" len="170586" min="-0.169189" max="0.171478" rms="0.042943"/>
+				</waveblock>
+				<waveblock start="2457657">
+					<simpleblockfile filename="e0808780.au" len="170586" min="-0.169189" max="0.171478" rms="0.042943"/>
+				</waveblock>
+			</sequence>
+			<envelope numpoints="0"/>
+		</waveclip>
+	</wavetrack>
+</project>

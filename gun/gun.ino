@@ -498,9 +498,7 @@ void OnDataRecv(uint8_t * mac, uint8_t *incomingData, uint8_t len) {
       light_on = false;
       EEPROM.write(197, 0);
   }
-      
-    esp_now_send(addressCibleAvant, (uint8_t *) &myData, sizeof(myData));
-    esp_now_send(addressCibleArriere, (uint8_t *) &myData, sizeof(myData));
+    sendParametersCibles();
     
     EEPROM.commit();
   }
@@ -770,7 +768,7 @@ void setup() {
 void sendParametersCibles() {
   // On envoie light_on
     if(not(started)) {
-    myData.idMessage = 44;
+    myData.idMessage = 45;
     if(light_on)
       myData.value = 1;
     else

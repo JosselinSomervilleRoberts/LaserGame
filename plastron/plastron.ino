@@ -163,6 +163,9 @@ void OnDataRecv(uint8_t * mac, uint8_t *incomingData, uint8_t len) {
     Serial.println("- expediteur: un autre pistolet");
   }
     
+
+
+
   
   if (myData.idMessage == 2) { // Un pistolet envoie une confirmation de connexion
     Serial.print("CONFIRMATION NEW CONNECTION... ");
@@ -242,21 +245,7 @@ void OnDataRecv(uint8_t * mac, uint8_t *incomingData, uint8_t len) {
     lastConnectionCheck = millis();
   }
 
-  else if (myData.idMessage == 9) { // Le pistolet a validé l equipe
-    equipeChosen = true;
-    hue = myData.value;
-  }
-
-  else if (myData.idMessage == 11) { // Le pistolet indique de mourir
-    // On vérifie que c'est bien l'addresse MAC que l'on attendait
-    if(cestLePistolet) {
-      if(vivant)
-        mourir();
-    }
-  }
-
-
-  else if (myData.idMessage == 7) {
+  else if (myData.idMessage == 7) { // Demande de reconnexion de la part du pistolet
     if(hasBeenConnected) {
       // On ajoute le pistolet comme destinataire et on lui envoie une confirmation de connexion
       esp_now_add_peer(addressReceived, ESP_NOW_ROLE_COMBO, 1, NULL, 0);
@@ -274,6 +263,18 @@ void OnDataRecv(uint8_t * mac, uint8_t *incomingData, uint8_t len) {
     }
   }
 
+  else if (myData.idMessage == 9) { // Le pistolet a validé l equipe
+    equipeChosen = true;
+    hue = myData.value;
+  }
+
+  else if (myData.idMessage == 11) { // Le pistolet indique de mourir
+    // On vérifie que c'est bien l'addresse MAC que l'on attendait
+    if(cestLePistolet) {
+      if(vivant)
+        mourir();
+    }
+  }
 
   else if (myData.idMessage == 12) { // Le pistolet indique de revivre
     // On vérifie que c'est bien l'addresse MAC que l'on attendait
@@ -289,7 +290,7 @@ void OnDataRecv(uint8_t * mac, uint8_t *incomingData, uint8_t len) {
     esp_now_send(addressReceived, (uint8_t *) &myData, sizeof(myData));
   }
 
-  else if (myData.idMessage == 14) { // L'autre cible demande si on a été connectée et la couleur
+  else if (myData.idMessage == 14) { // L'autre cible réponds à la demande de si elle est connectée ou non
     equipeChosen = (myData.value >= uint32_t(pow(16,3)));
     hasBeenConnected = (myData.value % uint32_t(pow(16,3)) >= uint32_t(pow(16,2)));
     hue = uint8_t(myData.value);
@@ -313,7 +314,7 @@ void OnDataRecv(uint8_t * mac, uint8_t *incomingData, uint8_t len) {
     }     
   }
 
-  else if (myData.idMessage == 44) { // Light on
+  else if (myData.idMessage == 45) { // Light on
     light_on = (myData.value == 1);
     if(equipeChosen) {
       if(light_on)
@@ -322,6 +323,11 @@ void OnDataRecv(uint8_t * mac, uint8_t *incomingData, uint8_t len) {
         turnOff();
     }
   }
+
+  else if (myData.idMessage == 30) { // Le pistolet indique que l'état de la la partie a changé
+    // On vérifie que c'est bien l'addresse MAC que l'on attendait
+    if(cestLePistolet)
+      deconnecter();
 } 
 
 
