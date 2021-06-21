@@ -1,5 +1,6 @@
 # LaserGame
 
+![My Image](https://github.com/JosselinSomervilleRoberts/LaserGame/blob/main/Photos/IMG_20201224_041024.jpg)
 <br>
 
 ## Auteur
