@@ -41,7 +41,7 @@ Josselin SOMERVILLE ROBERTS
 
 ### Communication IR
 
-Les pistolets doivent être identifiables à la fois par **leur adresse MAC** mais également par ****le code IR qu'ils envoient**. Comme tous les pistolets partagent les mêmes 3 premiers octets pour leurs adresses MAC, il suffit d'envoyer que les 3 derniers. On peut facilement envoyer 4 octets en IR, on envoie donc les 3 derniers octets de l'adresse MAC du pistolet suivit de ***0x66*** permettant d'identifier qu'il s'agit d'un pistolet du jeu.**
+Les pistolets doivent être identifiables à la fois par **leur adresse MAC** mais également par **le code IR qu'ils envoient**. Comme tous les pistolets partagent les mêmes 3 premiers octets pour leurs adresses MAC, il suffit d'envoyer que les 3 derniers. On peut facilement envoyer 4 octets en IR, on envoie donc les 3 derniers octets de l'adresse MAC du pistolet suivit de ***0x66*** permettant d'identifier qu'il s'agit d'un pistolet du jeu.**
 
 <br>
 
