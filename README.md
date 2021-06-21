@@ -41,7 +41,7 @@ Josselin SOMERVILLE ROBERTS
 
 ### Communication IR
 
-Les pistolets doivent être identifiables à la fois par **leur adresse MAC** mais également par ****le code IR qu'ils envoient**. Comme tous les pistolets partagent les mêmes 3 premiers octets pour leurs adresses MAC, il suffit d'envoyer que les 3 derniers. On peut facilement envoyer 4 octets en IR, on envoie donc les 3 derniers octets de l'adresse MAC du pistolet suivit de *****0x66* permettant d'identifier qu'il s'agit d'un pistolet du jeu.**
+Les pistolets doivent être identifiables à la fois par **leur adresse MAC** mais également par ****le code IR qu'ils envoient**. Comme tous les pistolets partagent les mêmes 3 premiers octets pour leurs adresses MAC, il suffit d'envoyer que les 3 derniers. On peut facilement envoyer 4 octets en IR, on envoie donc les 3 derniers octets de l'adresse MAC du pistolet suivit de ***0x66*** permettant d'identifier qu'il s'agit d'un pistolet du jeu.**
 
 <br>
 
@@ -85,7 +85,7 @@ Les messages sont seulement composés de :
 | 44                        | - 0: Plastrons allumés<br/>- 1: Plastrons éteints                                                                     | Pistolet **principal**      | Autres pistolets            | **Changement de règle:** allumage des lumières des plastrons.                                                                                                                                                                                                                                    |
 | 50                        | -                                                                                                                     | Pistolet                    | Cible avant / Cible arrière | Déconnexion.                                                                                                                                                                                                                                                                                     |
 
-<br><b>
+<br><br>
 
 ## Stockage des données
 
@@ -95,7 +95,7 @@ Les messages sont seulement composés de :
 
     Il faut bien faire attention à ne pas enregistrer trop souvent des données dans la mémoire EEPROM car sa durée de vie est limitée (entre 100 000 et 1 000 000 d'enregistrements pour chaque octets).
 
-### <br>
+<br>
 
 ### Pistolet
 
