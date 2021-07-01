@@ -122,272 +122,6 @@ void deconnecter() {
 }
 
 
-
-void OnDataRecv(uint8_t * mac, uint8_t *incomingData, uint8_t len) {
-  memcpy(&myData, incomingData, sizeof(myData));
-  memcpy(&addressReceived, mac, sizeof(addressReceived));
-
-  // On regarde si c'est le pistolet qui nous envoie un message
-  bool cestLePistolet = true;
-  for(int i=0; i<6; i++) {
-    if(adressPistolet[i] != addressReceived[i])
-      cestLePistolet = false;
-  }
-
-  // On regarde si c'est l'autre cible qui nous envoie un message
-  bool cestLautreCible = true;
-  for(int i=0; i<6; i++) {
-    if(adressAutreCible[i] != addressReceived[i])
-      cestLautreCible = false;
-  }
-
-  // On regarde si c'est un autre pistolet (normalement toutes les addresses MAC des pistolets commencent par les 6 même bytes
-  bool cestUnAutrePistolet = not(cestLePistolet);
-  for(int i=0; i<3; i++) {
-    if(adressPistolet[i] != addressReceived[i])
-      cestUnAutrePistolet = false;
-  }
-
-  if((myData.idMessage != 4) and (myData.idMessage != 5)) {
-    Serial.println("-> Wifi message received");
-    Serial.print("- id = ");
-    Serial.println(myData.idMessage);
-    Serial.print("- value = ");
-    Serial.println(myData.value, HEX);
-
-  if(cestLePistolet)
-    Serial.println("- expediteur: pistolet");
-  else if(cestLautreCible)
-    Serial.println("- expediteur: autre cible");
-  else if(cestUnAutrePistolet)
-    Serial.println("- expediteur: un autre pistolet");
-  }
-    
-
-
-
-  
-  if (myData.idMessage == 2) { // Un pistolet envoie une confirmation de connexion
-    Serial.print("CONFIRMATION NEW CONNECTION... ");
-
-    // On vérifie que l'on attend toujours une connexion
-    if((not(connected)) and (tryingToConnect or tryingToReconnect)) {
-      Serial.print("Timing correct... ");
-
-      // On vérifie que c'est bien l'addresse MAC que l'on attendait
-      // Si c'est la bonne adresse alors la connexion est bonne
-      if(cestLePistolet) {
-        Serial.println("Adresse correcte !");
-
-        if(myData.value == 1) {
-          connected = true;
-          hasBeenConnected = true;
-          tryingToConnect = false;
-          lastConnectionCheck = millis();
-
-          // on enregistre l'adresse du pistolet
-          for(int i=0; i<6; i++)
-            EEPROM.write(12+i, adressPistolet[i]);
-          EEPROM.commit();
-
-          if(typeCible == AVANT) {
-            // On informe l'autre cible de la connexion
-            myData.idMessage = 3; // ID pour connecter l'autre cible
-            // On transforme l'adresse MAC du pistolet en entier
-            // Attention on envoie l'adresse dans le sens inverse
-            uint64_t value = adressPistolet[5];
-            myData.value = uint32_t(value); // adresseMAC
-            esp_now_send(adressAutreCible, (uint8_t *) &myData, sizeof(myData));
-          }
-
-          if(not(light_on))
-            turnOff();
-        }
-        else if(myData.value == 2) {
-          tryingToConnect = false;
-          connected = false;
-        }
-      }
-      else
-        Serial.println("L'adresse ne correspond pas.");
-    }
-    else
-      Serial.println("Aucune tentative de connexion n'est en cours.");
-  }
-
-
-  else if (myData.idMessage == 3) { // L'autre cible indique de se connecter
-    // On vérifie que c'est bien l'addresse MAC de l'autre cible
-    if(cestLautreCible) {
-      // On récupère l'adresse MAC du pistolet
-      for(int i=0; i<6; i++)
-        adressPistolet[i] = 0x32;
-
-      adressPistolet[5] = uint8_t(myData.value);
-
-      // On ajoute le pistolet comme destinataire et on lui envoie une confirmation de connexion
-      esp_now_add_peer(adressPistolet, ESP_NOW_ROLE_COMBO, 1, NULL, 0);
-      myData.idMessage = 1; // ID pour dire qu'on demande a se connecter
-      myData.value = hueBase; // on envoie la couleur de la cible
-      esp_now_send(adressPistolet, (uint8_t *) &myData, sizeof(myData));
-
-      // On commence à compter, on a 10s pour confirmer la connexion
-      tryingToConnect = true;
-      timeConnectionProcessStarted = millis();
-      
-    }
-  }
-
-  else if (myData.idMessage == 5) { // Le pistolet vérifie la connection
-    // On renvoie une confirmation
-    myData.idMessage = 6;
-    esp_now_send(adressPistolet, (uint8_t *) &myData, sizeof(myData));
-    lastConnectionCheck = millis();
-  }
-
-  else if (myData.idMessage == 7) { // Demande de reconnexion de la part du pistolet
-    if(hasBeenConnected) {
-      // On ajoute le pistolet comme destinataire et on lui envoie une confirmation de connexion
-      esp_now_add_peer(addressReceived, ESP_NOW_ROLE_COMBO, 1, NULL, 0);
-      myData.idMessage = 8; // ID pour dire qu'on demande a se connecter
-      myData.value = hueBase; // on envoie la couleur de la cible
-      esp_now_send(addressReceived, (uint8_t *) &myData, sizeof(myData));
-    
-      tryingToReconnect = true;
-
-      if(equipeChosen) {
-         myData.idMessage = 9; // ID pour dire qu'on demande a se connecter
-        myData.value = hue; // on envoie la couleur de la cible
-        esp_now_send(addressReceived, (uint8_t *) &myData, sizeof(myData));
-      }
-    }
-  }
-
-  else if (myData.idMessage == 9) { // Le pistolet a validé l equipe
-    equipeChosen = true;
-    hue = myData.value;
-  }
-
-  else if (myData.idMessage == 11) { // Le pistolet indique de mourir
-    // On vérifie que c'est bien l'addresse MAC que l'on attendait
-    if(cestLePistolet) {
-      if(vivant)
-        mourir();
-    }
-  }
-
-  else if (myData.idMessage == 12) { // Le pistolet indique de revivre
-    // On vérifie que c'est bien l'addresse MAC que l'on attendait
-    if(cestLePistolet) {
-      if(not(vivant))
-        revivre();
-    }
-  }
-
-  else if (myData.idMessage == 13) { // L'autre cible demande si on a été connectée et la couleur
-    myData.value = hue + pow(16,2)*hasBeenConnected + equipeChosen * pow(16,3),
-    myData.idMessage = 14;
-    esp_now_send(addressReceived, (uint8_t *) &myData, sizeof(myData));
-  }
-
-  else if (myData.idMessage == 14) { // L'autre cible réponds à la demande de si elle est connectée ou non
-    equipeChosen = (myData.value >= uint32_t(pow(16,3)));
-    hasBeenConnected = (myData.value % uint32_t(pow(16,3)) >= uint32_t(pow(16,2)));
-    hue = uint8_t(myData.value);
-  }
-  
-
-  else if (myData.idMessage == 20) { // Le pistolet indique de changer de couleur
-    // On vérifie que c'est bien l'addresse MAC que l'on attendait
-    if(cestLePistolet)
-      hue = uint8_t(myData.value);
-  }
-
-
-  else if (myData.idMessage == 30) { // Le pistolet indique que l'état de la la partie a changé
-    // On vérifie que c'est bien l'addresse MAC que l'on attendait
-    if(cestLePistolet) {
-      if((myData.value == 1) and not(partieEnCours))
-        partieEnCours = true;
-      else if((myData.value == 2) and (partieEnCours))
-        partieEnCours = false;
-    }     
-  }
-
-  else if (myData.idMessage == 45) { // Light on
-    light_on = (myData.value == 1);
-    if(equipeChosen) {
-      if(light_on)
-        turnOn();
-      else
-        turnOff();
-    }
-  }
-
-  else if (myData.idMessage == 30) { // Le pistolet indique que l'état de la la partie a changé
-    // On vérifie que c'est bien l'addresse MAC que l'on attendait
-    if(cestLePistolet)
-      deconnecter();
-} 
-
-
-// Callback when data is sent
-void OnDataSent(uint8_t *mac_addr, uint8_t sendStatus) {}
-
-
-void setup() {
-  Serial.begin(115200);
-  EEPROM.begin(EEPROM_SIZE);
-  hueBase = EEPROM.read(25);
-  hue = hueBase;
-  typeCible = EEPROM.read(24);
-
-  // Charge l'adresse MAC
-  for(int i=0; i<6; i++) {
-    addressSelf[i] = EEPROM.read(i);
-    adressAutreCible[i] = EEPROM.read(6+i);
-    adressPistolet[i] = EEPROM.read(12+i);
-  }
-  wifi_set_macaddr(STATION_IF, &addressSelf[0]);
-  
-  pinMode(led1, OUTPUT);
-  digitalWrite(led1, HIGH);
-  
-  Serial.begin(115200);
-  irrecv.enableIRIn();  // Start the receiver
-  while (!Serial)  // Wait for the serial connection to be establised.
-    delay(50);
-
-  FastLED.addLeds<WS2812, ledPin, GRB>(leds, NUM_LEDS);
-  pinMode(led2, OUTPUT);
-  digitalWrite(led2, HIGH);
-
-  // Set device as a Wi-Fi Station
-  WiFi.mode(WIFI_STA);
-
-  // Init ESP-NOW
-  if (esp_now_init() != 0) {
-    for(int i=0; i<NUM_LEDS; i++)
-      leds[i] = CHSV(100,255,255);
-
-    FastLED.show();
-    delay(2000);
-  }
-  else {
-    // Once ESPNow is successfully Init, we will register for Send CB to
-    // get the status of Trasnmitted packet
-    esp_now_set_self_role(ESP_NOW_ROLE_COMBO);
-    esp_now_register_send_cb(OnDataSent);
-    esp_now_register_recv_cb(OnDataRecv);
-    
-    // Register peer
-    esp_now_add_peer(adressAutreCible, ESP_NOW_ROLE_COMBO, 1, NULL, 0);
-  }
-  digitalWrite(led2, LOW);
-  pinMode(led3, OUTPUT);
-  checkRestoreConnection();
-}
-
 void turnOn() {
   for(int i=0; i<NUM_LEDS; i++)
     leds[i] = CHSV(hue,255,255);
@@ -401,6 +135,7 @@ void turnOff() {
 
   FastLED.show();
 }
+
 
 void mourir() {
   Serial.println("MOURIR");
@@ -511,6 +246,275 @@ void touche(uint32_t message) {
       esp_now_send(adressPistolet, (uint8_t *) &myData, sizeof(myData));
     }
   }
+}
+
+
+void OnDataRecv(uint8_t * mac, uint8_t *incomingData, uint8_t len) {
+  memcpy(&myData, incomingData, sizeof(myData));
+  memcpy(&addressReceived, mac, sizeof(addressReceived));
+
+  // On regarde si c'est le pistolet qui nous envoie un message
+  bool cestLePistolet = true;
+  for(int i=0; i<6; i++) {
+    if(adressPistolet[i] != addressReceived[i])
+      cestLePistolet = false;
+  }
+
+  // On regarde si c'est l'autre cible qui nous envoie un message
+  bool cestLautreCible = true;
+  for(int i=0; i<6; i++) {
+    if(adressAutreCible[i] != addressReceived[i])
+      cestLautreCible = false;
+  }
+
+  // On regarde si c'est un autre pistolet (normalement toutes les addresses MAC des pistolets commencent par les 6 même bytes
+  bool cestUnAutrePistolet = not(cestLePistolet);
+  for(int i=0; i<3; i++) {
+    if(adressPistolet[i] != addressReceived[i])
+      cestUnAutrePistolet = false;
+  }
+
+  if((myData.idMessage != 4) and (myData.idMessage != 5)) {
+    Serial.println("-> Wifi message received");
+    Serial.print("- id = ");
+    Serial.println(myData.idMessage);
+    Serial.print("- value = ");
+    Serial.println(myData.value, HEX);
+
+  if(cestLePistolet)
+    Serial.println("- expediteur: pistolet");
+  else if(cestLautreCible)
+    Serial.println("- expediteur: autre cible");
+  else if(cestUnAutrePistolet)
+    Serial.println("- expediteur: un autre pistolet");
+  }
+    
+
+
+
+  
+  if (myData.idMessage == 2) { // Un pistolet envoie une confirmation de connexion
+    Serial.print("CONFIRMATION NEW CONNEXION... ");
+
+    // On vérifie que l'on attend toujours une connexion
+    if((not(connected)) and (tryingToConnect or tryingToReconnect)) {
+      Serial.print("Timing correct... ");
+
+      // On vérifie que c'est bien l'addresse MAC que l'on attendait
+      // Si c'est la bonne adresse alors la connexion est bonne
+      if(cestLePistolet) {
+        Serial.println("Adresse correcte !");
+
+        if(myData.value == 1) {
+          connected = true;
+          hasBeenConnected = true;
+          tryingToConnect = false;
+          lastConnectionCheck = millis();
+
+          // on enregistre l'adresse du pistolet
+          for(int i=0; i<6; i++)
+            EEPROM.write(12+i, adressPistolet[i]);
+          EEPROM.commit();
+
+          if(typeCible == AVANT) {
+            // On informe l'autre cible de la connexion
+            myData.idMessage = 3; // ID pour connecter l'autre cible
+            // On transforme l'adresse MAC du pistolet en entier
+            // Attention on envoie l'adresse dans le sens inverse
+            uint64_t value = adressPistolet[5];
+            myData.value = uint32_t(value); // adresseMAC
+            esp_now_send(adressAutreCible, (uint8_t *) &myData, sizeof(myData));
+          }
+
+          if(not(light_on))
+            turnOff();
+        }
+        else if(myData.value == 2) {
+          tryingToConnect = false;
+          connected = false;
+        }
+      }
+      else
+        Serial.println("L'adresse ne correspond pas.");
+    }
+    else
+      Serial.println("Aucune tentative de connexion n'est en cours.");
+  }
+
+
+  else if (myData.idMessage == 3) { // L'autre cible indique de se connecter
+    // On vérifie que c'est bien l'addresse MAC de l'autre cible
+    if(cestLautreCible) {
+      // On récupère l'adresse MAC du pistolet
+      for(int i=0; i<6; i++)
+        adressPistolet[i] = 0x32;
+
+      adressPistolet[5] = uint8_t(myData.value);
+
+      // On ajoute le pistolet comme destinataire et on lui envoie une confirmation de connexion
+      esp_now_add_peer(adressPistolet, ESP_NOW_ROLE_COMBO, 1, NULL, 0);
+      myData.idMessage = 1; // ID pour dire qu'on demande a se connecter
+      myData.value = hueBase; // on envoie la couleur de la cible
+      esp_now_send(adressPistolet, (uint8_t *) &myData, sizeof(myData));
+
+      // On commence à compter, on a 10s pour confirmer la connexion
+      tryingToConnect = true;
+      timeConnectionProcessStarted = millis();
+      
+    }
+  }
+
+  else if (myData.idMessage == 5) { // Le pistolet vérifie la connection
+    // On renvoie une confirmation
+    myData.idMessage = 6;
+    esp_now_send(adressPistolet, (uint8_t *) &myData, sizeof(myData));
+    lastConnectionCheck = millis();
+  }
+
+  else if (myData.idMessage == 7) { // Demande de reconnexion de la part du pistolet
+    if(hasBeenConnected) {
+      // On ajoute le pistolet comme destinataire et on lui envoie une confirmation de connexion
+      esp_now_add_peer(addressReceived, ESP_NOW_ROLE_COMBO, 1, NULL, 0);
+      myData.idMessage = 8; // ID pour dire qu'on demande a se connecter
+      myData.value = hue;//hueBase; // on envoie la couleur de la cible
+      esp_now_send(addressReceived, (uint8_t *) &myData, sizeof(myData));
+    
+      tryingToReconnect = true;
+
+      // BIZZARRE CA (ne correspond pas a la doc)
+      /*
+      if(equipeChosen) {
+         myData.idMessage = 9; // ID pour dire qu'on demande a se connecter
+        myData.value = hue; // on envoie la couleur de la cible
+        esp_now_send(addressReceived, (uint8_t *) &myData, sizeof(myData));
+      }*/
+    }
+  }
+
+  else if (myData.idMessage == 9) { // Le pistolet a validé l equipe
+    equipeChosen = true;
+    hue = myData.value;
+  }
+
+  else if (myData.idMessage == 11) { // Le pistolet indique de mourir
+    // On vérifie que c'est bien l'addresse MAC que l'on attendait
+    if(cestLePistolet) {
+      if(vivant)
+        mourir();
+    }
+  }
+
+  else if (myData.idMessage == 12) { // Le pistolet indique de revivre
+    // On vérifie que c'est bien l'addresse MAC que l'on attendait
+    if(cestLePistolet) {
+      if(not(vivant))
+        revivre();
+    }
+  }
+
+  else if (myData.idMessage == 13) { // L'autre cible demande si on a été connectée et la couleur
+    myData.value = hue + pow(16,2)*hasBeenConnected + equipeChosen * pow(16,3),
+    myData.idMessage = 14;
+    esp_now_send(addressReceived, (uint8_t *) &myData, sizeof(myData));
+  }
+
+  else if (myData.idMessage == 14) { // L'autre cible réponds à la demande de si elle est connectée ou non
+    equipeChosen = (myData.value >= uint32_t(pow(16,3)));
+    hasBeenConnected = (myData.value % uint32_t(pow(16,3)) >= uint32_t(pow(16,2)));
+    hue = uint8_t(myData.value);
+  }
+  
+
+  else if (myData.idMessage == 20) { // Le pistolet indique de changer de couleur
+    // On vérifie que c'est bien l'addresse MAC que l'on attendait
+    if(cestLePistolet)
+      hue = uint8_t(myData.value);
+  }
+
+
+  else if (myData.idMessage == 31) { // Le pistolet indique que l'état de la la partie a changé
+    // On vérifie que c'est bien l'addresse MAC que l'on attendait
+    if(cestLePistolet) {
+      if((myData.value == 1) and not(partieEnCours))
+        partieEnCours = true;
+      else if((myData.value == 2) and (partieEnCours))
+        partieEnCours = false;
+    }     
+  }
+
+  else if (myData.idMessage == 45) { // Light on
+    light_on = (myData.value == 1);
+    if(equipeChosen) {
+      if(light_on)
+        turnOn();
+      else
+        turnOff();
+    }
+  }
+
+  else if (myData.idMessage == 50) { // Le pistolet indique que l'état de la la partie a changé
+    // On vérifie que c'est bien l'addresse MAC que l'on attendait
+    if(cestLePistolet)
+      deconnecter();
+  }
+} 
+
+
+// Callback when data is sent
+void OnDataSent(uint8_t *mac_addr, uint8_t sendStatus) {}
+
+
+void setup() {
+  Serial.begin(115200);
+  EEPROM.begin(EEPROM_SIZE);
+  hueBase = EEPROM.read(25);
+  hue = hueBase;
+  typeCible = EEPROM.read(24);
+
+  // Charge l'adresse MAC
+  for(int i=0; i<6; i++) {
+    addressSelf[i] = EEPROM.read(i);
+    adressAutreCible[i] = EEPROM.read(6+i);
+    adressPistolet[i] = EEPROM.read(12+i);
+  }
+  wifi_set_macaddr(STATION_IF, &addressSelf[0]);
+  
+  pinMode(led1, OUTPUT);
+  digitalWrite(led1, HIGH);
+  
+  Serial.begin(115200);
+  irrecv.enableIRIn();  // Start the receiver
+  while (!Serial)  // Wait for the serial connection to be establised.
+    delay(50);
+
+  FastLED.addLeds<WS2812, ledPin, GRB>(leds, NUM_LEDS);
+  pinMode(led2, OUTPUT);
+  digitalWrite(led2, HIGH);
+
+  // Set device as a Wi-Fi Station
+  WiFi.mode(WIFI_STA);
+
+  // Init ESP-NOW
+  if (esp_now_init() != 0) {
+    for(int i=0; i<NUM_LEDS; i++)
+      leds[i] = CHSV(100,255,255);
+
+    FastLED.show();
+    delay(2000);
+  }
+  else {
+    // Once ESPNow is successfully Init, we will register for Send CB to
+    // get the status of Trasnmitted packet
+    esp_now_set_self_role(ESP_NOW_ROLE_COMBO);
+    esp_now_register_send_cb(OnDataSent);
+    esp_now_register_recv_cb(OnDataRecv);
+    
+    // Register peer
+    esp_now_add_peer(adressAutreCible, ESP_NOW_ROLE_COMBO, 1, NULL, 0);
+  }
+  digitalWrite(led2, LOW);
+  pinMode(led3, OUTPUT);
+  checkRestoreConnection();
 }
 
 void loop() {
