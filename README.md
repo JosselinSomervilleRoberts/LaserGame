@@ -1,6 +1,8 @@
 # LaserGame
 
-![My Image](https://github.com/JosselinSomervilleRoberts/LaserGame/blob/main/Photos/IMG_20201224_041024.jpg)
+For more details about the project, please visit: https://josselinsomervilleroberts.github.io/
+
+![image](https://github.com/JosselinSomervilleRoberts/JosselinSomervilleRoberts.github.io/blob/main/images/projects/laser%20game/playing.JPG)
 <br>
 
 ## Auteur
